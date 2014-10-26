@@ -395,6 +395,15 @@ function set_SFI (dev, lms)
 end
 
 function M_sf:autonegotiate_sfi ()
+   local function printf(fmt, ...) io.write(fmt:format(...), '\n') end
+   local function hr(reg) return bit.tohex(self.r[reg]()) end
+   printf ('initial:')
+   printf ('\tautoc: %s', hr('AUTOC'))
+   printf ('\tlinks: %s', hr('LINKS'))
+   printf ('\tautoc2:%s', hr('AUTOC2'))
+   printf ('\tlinks2: %s', hr('LINKS2'))
+
+
    return negotiated_autoc(self, function()
       set_SFI(self)
       self.r.AUTOC:set(bits{restart_AN=12})
@@ -403,6 +412,15 @@ function M_sf:autonegotiate_sfi ()
    end)
 end
 
+-- function M_sf:force_kr()
+--    local autoc = self.r.AUTOC()
+--    io.write (string.format('previous autoc %s\n', autoc))
+--    self.r.AUTOC(bits{pma10Gpmd=})
+--    self.r.AUTOC2(bits{pma10Gpmd=})
+--    self.r.SERDESC(bits{})
+--    self.r.AUTOC:set(bits{restart_AN=12})
+--    return self
+-- end
 
 --- ### PF: the physiscal device in a virtualized setup
 local M_pf = {}; M_pf.__index = M_pf
