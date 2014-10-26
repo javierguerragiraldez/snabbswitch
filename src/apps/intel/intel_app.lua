@@ -25,11 +25,11 @@ end
 
 -- Create an Intel82599 App for the device with 'pciaddress'.
 function Intel82599:new (arg)
-   local conf = config.parse_app_arg(arg)
+   local args = config.parse_app_arg(arg)
 
-   if conf.vmdq then
-      if devices[conf.pciaddr] == nil then
-         devices[conf.pciaddr] = {pf=intel10g.new_pf(conf.pciaddr):open(), vflist={}}
+   if args.vmdq then
+      if devices[args.pciaddr] == nil then
+         devices[args.pciaddr] = {pf=intel10g.new_pf(args.pciaddr):open(args), vflist={}}
       end
       local dev = devices[conf.pciaddr]
       local poolnum = firsthole(dev.vflist)-1
@@ -292,16 +292,18 @@ function mq_sw(pcidevA)
    local c = config.new()
    config.app(c, 'source_ms', basic_apps.Join)
    config.app(c, 'repeater_ms', basic_apps.Repeater)
-   config.app(c, 'nicAm0', Intel82599,
-              {-- first VF on NIC A
-               pciaddr = pcidevA,
-               vmdq = true,
-               macaddr = '52:54:00:01:01:01'})
-   config.app(c, 'nicAm1', Intel82599,
-              {-- second VF on NIC A
-               pciaddr = pcidevA,
-               vmdq = true,
-               macaddr = '52:54:00:02:02:02'})
+   config.app(c, 'nicAm0', Intel82599, {
+      -- first VF on NIC A
+      pciaddr = pcidevA,
+      vmdq = true,
+      macaddr = '52:54:00:01:01:01',
+   })
+   config.app(c, 'nicAm1', Intel82599, {
+      -- second VF on NIC A
+      pciaddr = pcidevA,
+      vmdq = true,
+      macaddr = '52:54:00:02:02:02',
+   })
    print ('-------')
    print ("Send a bunch of packets from Am0")
    print ("half of them go to nicAm1 and half go nowhere")

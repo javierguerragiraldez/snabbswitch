@@ -50,7 +50,7 @@ function new_sf (pciaddress)
 end
 
 
-function M_sf:open ()
+function M_sf:open (args)
    pci.set_bus_master(self.pciaddress, true)
    self.base, self.fd = pci.map_pci_memory(self.pciaddress, 0)
    register.define(config_registers_desc, self.r, self.base)
@@ -58,8 +58,8 @@ function M_sf:open ()
    register.define(receive_registers_desc, self.r, self.base)
    register.define(statistics_registers_desc, self.s, self.base)
    self.txpackets = ffi.new("struct packet *[?]", num_descriptors)
-   self.rxpackets = ffi.new("struct packet *[?]", num_descriptors)
-   return self:init()
+   self.rxbuffers = ffi.new("struct buffer *[?]", num_descriptors)
+   return self:init(args)
 end
 
 function M_sf:close()
@@ -79,7 +79,7 @@ end
 
 --- See data sheet section 4.6.3 "Initialization Sequence."
 
-function M_sf:init ()
+function M_sf:init (args)
    return self
       :init_dma_memory()
       :disable_interrupts()
@@ -89,6 +89,7 @@ function M_sf:init ()
       :init_statistics()
       :init_receive()
       :init_transmit()
+      :set_crossover(args.crossover)
       :wait_enable()
 end
 
@@ -394,20 +395,59 @@ function set_SFI (dev, lms)
    return dev
 end
 
+function set_KR (dev, lms)
+   lms = lms or bit.lshift(0x4, 13)
+   local autoc = dev.r.AUTOC()
+   if bit.band(autoc, bit.lshift(0x7, 13)) == lms then
+      dev.r.AUTOC(bits({restart_AN=12}, bit.bxor(autoc, 0x8000)))      -- flip LMS[2] (15)
+      lib.waitfor(function ()
+         return bit.band(dev.r.ANLP1(), 0xF0000) ~= 0
+      end)
+   end
+
+   dev.r.AUTOC(bit.bor(bit.band(autoc, 0xFFFF1FFF), lms))
+   return dev
+end
+
+local function printf(fmt, ...) io.write(fmt:format(...), '\n') end
+
+function set_serdesc(dev, swap, basebits)
+   local function hr(reg) return bit.tohex(dev.r[reg]()) end
+   basebits = basebits or 0
+   printf('crossover')
+   printf ('\tinitial: %s', hr('SERDESC'))
+--    crossAB = crossAB and 0x40 or 0x10
+--    crossCD = crossCD and 0x0E or 0x0B
+--    local swap = bor(crossAB, crossCD)
+   local serdesc = bor(lshift(swap, 24), lshift(swap, 16), basebits)
+   printf ('\tcalc: %s', bit.tohex(serdesc))
+   dev.r.SERDESC(serdesc)
+end
+
+function M_sf:set_crossover(cross)
+   print ('pcidev', self.pciaddress,'cross:', cross)
+   if cross == true then
+      print ('doing cross')
+      set_serdesc(self, 0x27)
+   end
+   return self
+end
+
 function M_sf:autonegotiate_sfi ()
-   local function printf(fmt, ...) io.write(fmt:format(...), '\n') end
    local function hr(reg) return bit.tohex(self.r[reg]()) end
    printf ('initial:')
    printf ('\tautoc: %s', hr('AUTOC'))
    printf ('\tlinks: %s', hr('LINKS'))
-   printf ('\tautoc2:%s', hr('AUTOC2'))
+   printf ('\tautoc2: %s', hr('AUTOC2'))
    printf ('\tlinks2: %s', hr('LINKS2'))
 
 
    return negotiated_autoc(self, function()
-      set_SFI(self)
+--       set_SFI(self)
+      set_KR(self)
+--       set_crossover(self, true, true, 0x00FF)
       self.r.AUTOC:set(bits{restart_AN=12})
-      self.r.AUTOC2(0x00020000)
+      self.r.AUTOC2(0x00000000)
       return self
    end)
 end
@@ -437,7 +477,7 @@ function new_pf (pciaddress)
    return setmetatable(dev, M_pf)
 end
 
-function M_pf:open ()
+function M_pf:open (args)
    pci.set_bus_master(self.pciaddress, true)
    self.base, self.fd = pci.map_pci_memory(self.pciaddress, 0)
    register.define(config_registers_desc, self.r, self.base)
@@ -445,7 +485,7 @@ function M_pf:open ()
    register.define_array(packet_filter_desc, self.r, self.base)
    register.define(statistics_registers_desc, self.s, self.base)
    register.define_array(queue_statistics_registers_desc, self.qs, self.base)
-   return self:init()
+   return self:init(args)
 end
 
 function M_pf:close()
@@ -455,7 +495,7 @@ function M_pf:close()
    end
 end
 
-function M_pf:init ()
+function M_pf:init (args)
    return self
       :disable_interrupts()
       :global_reset()
@@ -466,6 +506,7 @@ function M_pf:init ()
       :init_statistics()
       :init_receive()
       :init_transmit()
+      :set_crossover(args.crossover)
       :wait_linkup()
       :recheck()
 end
@@ -500,6 +541,7 @@ M_pf.init_statistics = M_sf.init_statistics
 M_pf.set_promiscuous_mode = M_sf.set_promiscuous_mode
 M_pf.init_receive = M_sf.init_receive
 M_pf.init_transmit = M_sf.init_transmit
+M_pf.set_crossover = M_sf.set_crossover
 M_pf.wait_linkup = M_sf.wait_linkup
 
 function M_pf:set_vmdq_mode ()
@@ -1019,6 +1061,7 @@ SECRXCTRL 0x08D00 -            RW Security RX Control
 SECRXSTAT 0x08D04 -            RO Security Rx Status
 SECTXCTRL 0x08800 -            RW Security Tx Control
 SECTXSTAT 0x08804 -            RO Security Tx Status
+SERDESC   0x04298 -            RW SerDes Interface Control Register
 STATUS    0x00008 -            RO Device Status
 SWSM      0x10140 -            RW Software Semaphore Register
 SW_FW_SYNC 0x10160 -           RW Software–Firmware Synchronization
