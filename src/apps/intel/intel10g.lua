@@ -426,9 +426,9 @@ end
 
 function M_sf:set_crossover(cross)
    print ('pcidev', self.pciaddress,'cross:', cross)
-   if cross == true then
+   if cross  then
       print ('doing cross')
-      set_serdesc(self, 0x27)
+      set_serdesc(self, cross)
    end
    return self
 end
@@ -1046,6 +1046,8 @@ MNGTXMAP  0x0CD10 -            RW Mangeability Tranxmit TC Mapping
 MFLCN     0x04294 -            RW MAC Flow Control Register
 MTQC      0x08120 -            RW Multiple Transmit Queues Command Register
 MRQC      0x0EC80 -            RW Multiple Receive Queues Command Register
+MSCA      0x0425C -            RW MDI Single Command and Address
+MSRWD     0x04260 -            RW MDI Single Read and Write Data
 PFQDE     0x02F04 -            RW PF Queue Drop Enable Register
 PFVTCTL   0x051B0 -             RW PF Virtual Control Register
 RDRXCTL   0x02F00 -            RW Receive DMA Control

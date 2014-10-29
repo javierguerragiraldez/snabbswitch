@@ -1,5 +1,7 @@
 module(...,package.seeall)
 
+local ffi      = require "ffi"
+local C        = ffi.C
 local zone = require("jit.zone")
 local basic_apps = require("apps.basic.basic_apps")
 local lib      = require("core.lib")
@@ -149,6 +151,7 @@ function selftest ()
    manyreconf(pcideva, pcidevb)
 
    mq_sw(pcideva)
+   C.usleep(1.5*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=true}})
    do
       local a0Sends = engine.app_table.nicAm0.input.rx.stats.txpackets
@@ -161,6 +164,7 @@ function selftest ()
    end
 
    sq_sq(pcideva, pcidevb)
+   C.usleep(1.5*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=true}})
 
    do
@@ -180,6 +184,7 @@ function selftest ()
    end
 
    mq_sq(pcideva, pcidevb)
+   C.usleep(1.5*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=true}})
 
    do
@@ -206,8 +211,8 @@ function sq_sq(pcidevA, pcidevB)
    print("Transmitting bidirectionally between nicA and nicB")
    config.app(c, 'source1', basic_apps.Source)
    config.app(c, 'source2', basic_apps.Source)
-   config.app(c, 'nicA', Intel82599, {pciaddr=pcidevA})
-   config.app(c, 'nicB', Intel82599, {pciaddr=pcidevB})
+   config.app(c, 'nicA', Intel82599, {pciaddr=pcidevA, crossover=true})
+   config.app(c, 'nicB', Intel82599, {pciaddr=pcidevB, crossover=false})
    config.app(c, 'sink', basic_apps.Sink)
    config.link(c, 'source1.out -> nicA.rx')
    config.link(c, 'source2.out -> nicB.rx')
@@ -240,23 +245,28 @@ function mq_sq(pcidevA, pcidevB)
    local c = config.new()
    config.app(c, 'source_ms', basic_apps.Join)
    config.app(c, 'repeater_ms', basic_apps.Repeater)
-   config.app(c, 'nicAs', Intel82599,
-              {-- Single App on NIC A
-               pciaddr = pcidevA,
-               macaddr = '52:54:00:01:01:01'})
-   config.app(c, 'nicBm0', Intel82599,
-              {-- first VF on NIC B
-               pciaddr = pcidevB,
-               vmdq = true,
-               macaddr = '52:54:00:02:02:02'})
-   config.app(c, 'nicBm1', Intel82599,
-              {-- second VF on NIC B
-               pciaddr = pcidevB,
-               vmdq = true,
-               macaddr = '52:54:00:03:03:03'})
-   print("-------")
-   print("Send traffic from a nicA (SF) to nicB (two VFs)")
-   print("The packets should arrive evenly split between the VFs")
+   config.app(c, 'nicAs', Intel82599, {
+      -- Single App on NIC A
+      pciaddr = pcidevA,
+      macaddr = '52:54:00:01:01:01',
+      crossover = false,
+   })
+   config.app(c, 'nicBm0', Intel82599, {
+      -- first VF on NIC B
+      pciaddr = pcidevB,
+      vmdq = true,
+      macaddr = '52:54:00:02:02:02',
+      crossover = false,
+   })
+   config.app(c, 'nicBm1', Intel82599, {
+      -- second VF on NIC B
+      pciaddr = pcidevB,
+      vmdq = true,
+      macaddr = '52:54:00:03:03:03',
+   })
+   print ('-------')
+   print ("Send a bunch of from the SF on NIC A to the VFs on NIC B")
+   print ("half of them go to nicBm0 and nicBm0")
    config.app(c, 'sink_ms', basic_apps.Sink)
    config.link(c, 'source_ms.out -> repeater_ms.input')
    config.link(c, 'repeater_ms.output -> nicAs.rx')
@@ -297,12 +307,14 @@ function mq_sw(pcidevA)
       pciaddr = pcidevA,
       vmdq = true,
       macaddr = '52:54:00:01:01:01',
+      crossover = false,
    })
    config.app(c, 'nicAm1', Intel82599, {
       -- second VF on NIC A
       pciaddr = pcidevA,
       vmdq = true,
       macaddr = '52:54:00:02:02:02',
+      crossover = false,
    })
    print ('-------')
    print ("Send a bunch of packets from Am0")
