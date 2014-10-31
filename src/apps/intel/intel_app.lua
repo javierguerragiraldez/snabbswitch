@@ -152,7 +152,7 @@ function selftest ()
 
    mq_sw(pcideva)
    C.usleep(1.5*1000000)
-   engine.main({duration = 1, report={showlinks=true, showapps=true}})
+   engine.main({duration = 1, report={showlinks=true, showapps=false}})
    do
       local a0Sends = engine.app_table.nicAm0.input.rx.stats.txpackets
       local a1Gets = engine.app_table.nicAm1.output.tx.stats.rxpackets
@@ -165,8 +165,7 @@ function selftest ()
 
    sq_sq(pcideva, pcidevb)
    C.usleep(1.5*1000000)
-   engine.main({duration = 1, report={showlinks=true, showapps=true}})
-
+   engine.main({duration = 1, report={showlinks=true, showapps=false}})
    do
       local aSends = engine.app_table.nicA.input.rx.stats.txpackets
       local aGets = engine.app_table.nicA.output.tx.stats.rxpackets
@@ -185,8 +184,7 @@ function selftest ()
 
    mq_sq(pcideva, pcidevb)
    C.usleep(1.5*1000000)
-   engine.main({duration = 1, report={showlinks=true, showapps=true}})
-
+   engine.main({duration = 1, report={showlinks=true, showapps=false}})
    do
       local aSends = engine.app_table.nicAs.input.rx.stats.txpackets
       local b0Gets = engine.app_table.nicBm0.output.tx.stats.rxpackets

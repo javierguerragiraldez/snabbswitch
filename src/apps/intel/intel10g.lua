@@ -89,7 +89,6 @@ function M_sf:init (args)
       :init_statistics()
       :init_receive()
       :init_transmit()
-      :set_crossover(args.crossover)
       :wait_enable()
 end
 
@@ -409,58 +408,17 @@ function set_KR (dev, lms)
    return dev
 end
 
-local function printf(fmt, ...) io.write(fmt:format(...), '\n') end
-
-function set_serdesc(dev, swap, basebits)
-   local function hr(reg) return bit.tohex(dev.r[reg]()) end
-   basebits = basebits or 0
-   printf('crossover')
-   printf ('\tinitial: %s', hr('SERDESC'))
---    crossAB = crossAB and 0x40 or 0x10
---    crossCD = crossCD and 0x0E or 0x0B
---    local swap = bor(crossAB, crossCD)
-   local serdesc = bor(lshift(swap, 24), lshift(swap, 16), basebits)
-   printf ('\tcalc: %s', bit.tohex(serdesc))
-   dev.r.SERDESC(serdesc)
-end
-
-function M_sf:set_crossover(cross)
-   print ('pcidev', self.pciaddress,'cross:', cross)
-   if cross  then
-      print ('doing cross')
-      set_serdesc(self, cross)
-   end
-   return self
-end
 
 function M_sf:autonegotiate_sfi ()
-   local function hr(reg) return bit.tohex(self.r[reg]()) end
-   printf ('initial:')
-   printf ('\tautoc: %s', hr('AUTOC'))
-   printf ('\tlinks: %s', hr('LINKS'))
-   printf ('\tautoc2: %s', hr('AUTOC2'))
-   printf ('\tlinks2: %s', hr('LINKS2'))
-
-
    return negotiated_autoc(self, function()
 --       set_SFI(self)
       set_KR(self)
---       set_crossover(self, true, true, 0x00FF)
       self.r.AUTOC:set(bits{restart_AN=12})
       self.r.AUTOC2(0x00000000)
       return self
    end)
 end
 
--- function M_sf:force_kr()
---    local autoc = self.r.AUTOC()
---    io.write (string.format('previous autoc %s\n', autoc))
---    self.r.AUTOC(bits{pma10Gpmd=})
---    self.r.AUTOC2(bits{pma10Gpmd=})
---    self.r.SERDESC(bits{})
---    self.r.AUTOC:set(bits{restart_AN=12})
---    return self
--- end
 
 --- ### PF: the physiscal device in a virtualized setup
 local M_pf = {}; M_pf.__index = M_pf
@@ -506,7 +464,6 @@ function M_pf:init (args)
       :init_statistics()
       :init_receive()
       :init_transmit()
-      :set_crossover(args.crossover)
       :wait_linkup()
       :recheck()
 end
