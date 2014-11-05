@@ -498,7 +498,6 @@ M_pf.init_statistics = M_sf.init_statistics
 M_pf.set_promiscuous_mode = M_sf.set_promiscuous_mode
 M_pf.init_receive = M_sf.init_receive
 M_pf.init_transmit = M_sf.init_transmit
-M_pf.set_crossover = M_sf.set_crossover
 M_pf.wait_linkup = M_sf.wait_linkup
 
 function M_pf:set_vmdq_mode ()

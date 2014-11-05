@@ -33,11 +33,11 @@ function Intel82599:new (arg)
       if devices[args.pciaddr] == nil then
          devices[args.pciaddr] = {pf=intel10g.new_pf(args.pciaddr):open(args), vflist={}}
       end
-      local dev = devices[conf.pciaddr]
+      local dev = devices[args.pciaddr]
       local poolnum = firsthole(dev.vflist)-1
       local vf = dev.pf:new_vf(poolnum)
       dev.vflist[poolnum+1] = vf
-      return setmetatable({dev=vf:open(conf)}, Intel82599)
+      return setmetatable({dev=vf:open(args)}, Intel82599)
    else
       local dev = intel10g.new_sf(conf.pciaddr)
          :open()
@@ -209,8 +209,8 @@ function sq_sq(pcidevA, pcidevB)
    print("Transmitting bidirectionally between nicA and nicB")
    config.app(c, 'source1', basic_apps.Source)
    config.app(c, 'source2', basic_apps.Source)
-   config.app(c, 'nicA', Intel82599, {pciaddr=pcidevA, crossover=true})
-   config.app(c, 'nicB', Intel82599, {pciaddr=pcidevB, crossover=false})
+   config.app(c, 'nicA', Intel82599, {pciaddr=pcidevA})
+   config.app(c, 'nicB', Intel82599, {pciaddr=pcidevB})
    config.app(c, 'sink', basic_apps.Sink)
    config.link(c, 'source1.out -> nicA.rx')
    config.link(c, 'source2.out -> nicB.rx')
@@ -247,14 +247,12 @@ function mq_sq(pcidevA, pcidevB)
       -- Single App on NIC A
       pciaddr = pcidevA,
       macaddr = '52:54:00:01:01:01',
-      crossover = false,
    })
    config.app(c, 'nicBm0', Intel82599, {
       -- first VF on NIC B
       pciaddr = pcidevB,
       vmdq = true,
       macaddr = '52:54:00:02:02:02',
-      crossover = false,
    })
    config.app(c, 'nicBm1', Intel82599, {
       -- second VF on NIC B
@@ -305,14 +303,12 @@ function mq_sw(pcidevA)
       pciaddr = pcidevA,
       vmdq = true,
       macaddr = '52:54:00:01:01:01',
-      crossover = false,
    })
    config.app(c, 'nicAm1', Intel82599, {
       -- second VF on NIC A
       pciaddr = pcidevA,
       vmdq = true,
       macaddr = '52:54:00:02:02:02',
-      crossover = false,
    })
    print ('-------')
    print ("Send a bunch of packets from Am0")
