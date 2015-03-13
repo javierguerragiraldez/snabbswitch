@@ -5,7 +5,7 @@ local C = ffi.C
 local app = require("core.app")
 local basic_apps = require("apps.basic.basic_apps")
 local band, bor, bnot = bit.band, bit.bor, bit.bnot
-require("core.ipchecksum_h")
+local checksum = require("lib.checksum")
 
 
 local PACKET_CSUM_FLAGS = C.PACKET_CSUM_VALID + C.PACKET_NEEDS_CSUM
@@ -53,8 +53,7 @@ function Checksum:push()
                and p.csum_start > 0 and p.csum_offset > 0
             then
                local b = p.data + p.csum_start
-               local initial = ffi.cast(uint16p_t, b+p.csum_offset)[0]
-               C.update_checksum(b, p.length - p.csum_start, initial, p.csum_offset)
+               ffi.cast(uint16p_t, b+p.csum_offset)[0] = checksum.ipsum(b, p.length - p.csum_start, 0)
 
                p.flags = bor(band(p.flags, bnot(C.PACKET_NEEDS_CSUM)), C.PACKET_CSUM_VALID)
                self.csum_added = self.csum_added + 1
@@ -75,8 +74,7 @@ function Checksum:push()
                and p.csum_start > 0 and p.csum_offset > 0
             then
                local b = p.data + p.csum_start
-               local initial = ffi.cast(uint16p_t, b+p.csum_offset)[0]
-               if 0 == C.calc_checksum(b, p.length - p.csum_start, initial, p.csum_offset) then
+               if 0 == checksum.ipsum(b, p.length - p.csum_start, 0) then
                   p.flags = bor(band(p.flags, bnot(C.PACKET_NEEDS_CSUM)), C.PACKET_CSUM_VALID)
                   link.transmit(l_out, p)
                   self.chk_valid = self.chk_valid + 1
