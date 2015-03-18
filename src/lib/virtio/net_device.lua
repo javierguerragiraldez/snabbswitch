@@ -77,7 +77,12 @@ function VirtioNetDevice:new(owner)
       kickfd = {},
       virtq = {},
       rx = {},
-      tx = {}
+      tx = { 
+	 p = nil,
+	 tx_mrg_hdr = ffi.new("struct virtio_net_hdr_mrg_rxbuf*[1]") ,
+	 data_sent = nil,
+	 finished = nil
+      }
    }
 
    o = setmetatable(o, {__index = VirtioNetDevice})
@@ -94,7 +99,6 @@ function VirtioNetDevice:new(owner)
    self.virtq_pairs = 1
    self.hdr_type = virtio_net_hdr_type
    self.hdr_size = virtio_net_hdr_size
-   self.tx = {}
 
    return o
 end
@@ -225,14 +229,29 @@ function VirtioNetDevice:tx_packet_start_mrg_rxbuf(addr, len)
    local tx_mrg_hdr = ffi.cast(virtio_net_hdr_mrg_rxbuf_type, self:map_from_guest(addr))
    local l = self.owner.input.rx
    local tx_p = self.tx.p
-   -- TODO: copy the relevnat fields from the packet
    ffi.fill(tx_mrg_hdr, virtio_net_hdr_mrg_rxbuf_size)
 
    -- for the first buffer receive a packet and save its header pointer
    if not tx_p then
       if link.empty(l) then return end
       tx_p = link.receive(l)
-      self.tx.tx_mrg_hdr = tx_mrg_hdr
+
+      -- XXX: We should validate the checksum and report the result to
+      -- the VM. -lukego
+      --
+      -- If checksum successful then set C.VIO_NET_HDR_F_DATA_VALID.
+      --
+      -- If checksum failed then set C.VIO_NET_HDR_F_NEEDS_CSUM and
+      -- let the guest do its own check to detect the error.
+      --
+      -- The call to ipsum here should be replaced with a real
+      -- IP/TCP/UDP checksum check. The current call exists only to
+      -- make the CPU do the checksumming work so that we can measure
+      -- preliminary performance.
+      checksum.ipsum(tx_p.data, tx_p.length, 0)
+      tx_mrg_hdr.hdr.flags = C.VIO_NET_HDR_F_DATA_VALID
+
+      self.tx.tx_mrg_hdr[0] = tx_mrg_hdr
       self.tx.data_sent = 0
    end
 
@@ -248,7 +267,7 @@ function VirtioNetDevice:tx_buffer_add_mrg_rxbuf(tx_p, addr, len)
    -- virtq passes us the pointer to the DATA so we need to adjust
    -- the number fo copied data and the pointer
    local adjust = 0
-   if self.tx.tx_mrg_hdr.num_buffers ~= 0 then
+   if self.tx.tx_mrg_hdr[0].num_buffers ~= 0 then
       adjust = virtio_net_hdr_mrg_rxbuf_size
    end
 
@@ -261,7 +280,7 @@ function VirtioNetDevice:tx_buffer_add_mrg_rxbuf(tx_p, addr, len)
    ffi.copy(pointer - adjust, tx_p.data + self.tx.data_sent, to_copy)
 
    -- update the num_buffers in the first virtio header
-   self.tx.tx_mrg_hdr.num_buffers = self.tx.tx_mrg_hdr.num_buffers + 1
+   self.tx.tx_mrg_hdr[0].num_buffers = self.tx.tx_mrg_hdr[0].num_buffers + 1
    self.tx.data_sent = self.tx.data_sent + to_copy
 
    -- have we sent all the data in the packet?
@@ -276,7 +295,9 @@ function VirtioNetDevice:tx_packet_end_mrg_rxbuf(header_id, total_size, tx_p)
    -- free the packet only when all its data is processed
    if self.tx.finished then
       packet.free(tx_p)
-      self.tx = {}
+      self.tx.p = nil
+      self.tx.data_sent = nil
+      self.tx.finished = nil
    elseif not self.tx.p then
       self.tx.p = tx_p
    end
