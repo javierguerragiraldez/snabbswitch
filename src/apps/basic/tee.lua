@@ -1,16 +1,6 @@
 --- ### `Tee` app: Send inputs to all outputs
 local transmit, receive = link.transmit, link.receive
-
-local inputi, outputi = {}, {}
-function relink ()
-   inputi, outputi = {}, {}
-   for _,l in pairs(output) do
-      table.insert(outputi, l)
-   end
-   for _,l in pairs(input) do
-      table.insert(inputi, l)
-   end
-end
+include ('apps.basic.basic')
 
 
 function push ()

@@ -9,9 +9,15 @@ local function copy(dst, src)
    return dst
 end
 
+local function include(modname)
+   local env = getfenv(2)
+   return assert(loadfile(assert(package.searchpath(modname, package.path)), nil, env))()
+end
+
 local environment_mt = {__index = copy({
       packet = require('core.packet'),
       link = require('core.link'),
+      include = include,
    }, getfenv())}
 
 

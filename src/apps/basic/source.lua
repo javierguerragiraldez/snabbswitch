@@ -6,14 +6,7 @@ local transmit, receive = link.transmit, link.receive
 local size = size or 60
 local pkt = packet.from_pointer (ffi.new("char[?]", size), size)
 
-local outputi = {}
-
-function relink ()
-   outputi = {}
-   for _,l in pairs(output) do
-      table.insert(outputi, l)
-   end
-end
+include ('apps.basic.basic')
 
 
 function pull ()

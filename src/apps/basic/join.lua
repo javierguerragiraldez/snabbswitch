@@ -1,16 +1,7 @@
 
 --- # `Join` app: Merge multiple inputs onto one output
 local transmit, receive = link.transmit, link.receive
-local inputi = {}
-
-
-function relink ()
-   inputi = {}
-   for _,l in pairs(input) do
-      table.insert(inputi, l)
-   end
-end
-
+include ('apps.basic.basic')
 
 function push ()
    for _, inport in ipairs(inputi) do
