@@ -9,9 +9,9 @@ include ('apps.basic.basic')
 
 
 function pull ()
-   for _, o in ipairs(outputi) do
-      for i = 1, o:nwritable() do
-         o:transmit(pkt:clone())
+   for _, outport in ipairs(outputi) do
+      while not outport:full() do
+         outport:transmit(pkt:clone())
       end
    end
 end

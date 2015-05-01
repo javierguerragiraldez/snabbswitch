@@ -4,10 +4,9 @@ include ('apps.basic.basic')
 
 
 function push ()
-   for _, i in ipairs(inputi) do
-      for _ = 1, i:nreadable() do
-        local p = i:receive()
-        p:free()
+   for _, inport in ipairs(inputi) do
+      while not inport:empty() do
+        inport:receive():free()
       end
    end
 end

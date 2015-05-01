@@ -4,16 +4,15 @@ local index = 1
 local packets = {}
 
 function push ()
-   local i, o = input.input, output.output
-   for _ = 1, i:nreadable() do
-      local p = i:receive()
-      table.insert(self.packets, p)
+   local inport, outport = input.input, output.output
+   while not inport:empty() do
+      table.insert(self.packets, inport:receive())
    end
    local npackets = #packets
    if npackets > 0 then
-      for i = 1, o:nwritable() do
+      while not outport:full() do
          assert(packets[index])
-         o:transmit(packets[index]:clone())
+         outport:transmit(packets[index]:clone())
          index = (index % npackets) + 1
       end
    end
@@ -21,8 +20,8 @@ end
 
 
 function stop ()
-   for i = 1, #packets do
-      packets[i]:free()
+   for _, pkt in ipairs(packets) do
+      pkt:free()
    end
 end
 

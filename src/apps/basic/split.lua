@@ -8,10 +8,10 @@ include ('apps.basic.basic')
 
 
 function push ()
-   for _, i in ipairs(inputi) do
-      for _, o in ipairs(outputi) do
-         for _ = 1, math.min(i:nreadable(), o:nwritable()) do
-            o:transmit(i:receive())
+   for _, inport in ipairs(inputi) do
+      for _, outport in ipairs(outputi) do
+         while not inport:empty() and not outport:full() do
+            outport:transmit(inport:receive())
          end
       end
    end
