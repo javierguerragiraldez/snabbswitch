@@ -1,4 +1,5 @@
 module(...,package.seeall)
+local Link = {}     -- OOP method table
 
 local debug = _G.developer_debug
 
@@ -18,84 +19,84 @@ function new (receiving_app)
    return ffi.new("struct link", {receiving_app = receiving_app})
 end
 
-function receive (r)
---   if debug then assert(not empty(r), "receive on empty link") end
-   local p = r.packets[r.read]
-   r.read = band(r.read + 1, size - 1)
+function Link:receive ()
+--   if debug then assert(not self:empty(), "receive on empty link") end
+   local pkt = self.packets[self.read]
+   self.read = band(self.read + 1, size - 1)
 
-   r.stats.rxpackets = r.stats.rxpackets + 1
-   r.stats.rxbytes   = r.stats.rxbytes + p.length
-   return p
+   self.stats.rxpackets = self.stats.rxpackets + 1
+   self.stats.rxbytes   = self.stats.rxbytes + pkt.length
+   return pkt
 end
 
-function front (r)
-   return (r.read ~= r.write) and r.packets[r.read] or nil
+function Link:front ()
+   return (self.read ~= self.write) and self.packets[self.read] or nil
 end
 
-function transmit (r, p)
---   assert(p)
-   if full(r) then
-      r.stats.txdrop = r.stats.txdrop + 1
-      packet.free(p)
+function Link:transmit (pkt)
+--   assert(pkt)
+   if self:full() then
+      self.stats.txdrop = self.stats.txdrop + 1
+      pkt:free()
    else
-      r.packets[r.write] = p
-      r.write = band(r.write + 1, size - 1)
-      r.stats.txpackets = r.stats.txpackets + 1
-      r.stats.txbytes   = r.stats.txbytes + p.length
-      r.has_new_data = true
+      self.packets[self.write] = pkt
+      self.write = band(self.write + 1, size - 1)
+      self.stats.txpackets = self.stats.txpackets + 1
+      self.stats.txbytes   = self.stats.txbytes + pkt.length
+      self.has_new_data = true
    end
 end
 
 -- Return true if the ring is empty.
-function empty (r)
-   return r.read == r.write
+function Link:empty ()
+   return self.read == self.write
 end
 
 -- Return true if the ring is full.
-function full (r)
-   return band(r.write + 1, size - 1) == r.read
+function Link:full ()
+   return band(self.write + 1, size - 1) == self.read
 end
 
 -- Return the number of packets that are ready for read.
-function nreadable (r)
-   if r.read > r.write then
-      return r.write + size - r.read
+function Link:nreadable ()
+   if self.read > self.write then
+      return self.write + size - self.read
    else
-      return r.write - r.read
+      return self.write - self.read
    end
 end
 
-function nwritable (r)
-   return max - nreadable(r)
+function Link:nwritable ()
+   return max - self:nreadable()
 end
 
-function stats (r)
-   return r.stats
+function Link:stats ()
+   return self.stats
 end
 
 function selftest ()
    print("selftest: link")
-   local r = new()
-   local p = packet.allocate()
-   assert(r.stats.txpackets == 0 and empty(r) == true  and full(r) == false)
-   assert(nreadable(r) == 0)
-   transmit(r, p)
-   assert(r.stats.txpackets == 1 and empty(r) == false and full(r) == false)
+   local lnk = new()
+   local pkt = packet.allocate()
+   assert(lnk.stats.txpackets == 0 and lnk:empty() == true  and lnk:full() == false)
+   assert(lnk:nreadable() == 0)
+   lnk:transmit(pkt)
+   assert(lnt.stats.txpackets == 1 and lnk:empty() == false and lnk:full() == false)
    for i = 1, max-2 do
-      transmit(r, p)
+      lnk:transmit(pkt)
    end
-   assert(r.stats.txpackets == max-1 and empty(r) == false and full(r) == false)
-   assert(nreadable(r) == r.stats.txpackets)
-   transmit(r, p)
-   assert(r.stats.txpackets == max   and empty(r) == false and full(r) == true)
-   transmit(r, p)
-   assert(r.stats.txpackets == max and r.stats.txdrop == 1)
-   assert(not empty(r) and full(r))
-   while not empty(r) do
-      receive(r)
+   assert(lnk.stats.txpackets == max-1 and lnk:empty() == false and lnk:full() == false)
+   assert(lnk:nreadable() == lnk.stats.txpackets)
+   lnk:transmit(pkt)
+   assert(lnk.stats.txpackets == max   and lnk:empty() == false and lnk:full() == true)
+   lnk:transmit(pkt)
+   assert(lnk.stats.txpackets == max and lnk.stats.txdrop == 1)
+   assert(not lnk:empty() and lnk:full())
+   while not lnk:empty() do
+      lnk:receive()
    end
-   assert(r.stats.rxpackets == max)
+   assert(lnk.stats.rxpackets == max)
    print("selftest OK")
 end
 
-ffi.metatype('struct link', {__index = _M})
+ffi.metatype('struct link', {__index = Link})
