@@ -98,3 +98,4 @@ function selftest ()
    print("selftest OK")
 end
 
+ffi.metatype('struct link', {__index = _M})
