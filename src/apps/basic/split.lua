@@ -4,15 +4,14 @@
 -- For each input port, push packets onto outputs. When one output
 -- becomes full then continue with the next.
 
-local transmit, receive = link.transmit, link.receive
 include ('apps.basic.basic')
 
 
 function push ()
    for _, i in ipairs(inputi) do
       for _, o in ipairs(outputi) do
-         for _ = 1, math.min(link.nreadable(i), link.nwritable(o)) do
-            transmit(o, receive(i))
+         for _ = 1, math.min(i:nreadable(), o:nwritable()) do
+            o:transmit(i:receive())
          end
       end
    end

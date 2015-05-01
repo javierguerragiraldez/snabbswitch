@@ -1,5 +1,4 @@
 --- ### `Tee` app: Send inputs to all outputs
-local transmit, receive = link.transmit, link.receive
 include ('apps.basic.basic')
 
 
@@ -8,15 +7,15 @@ function push ()
    if noutputs > 0 then
       local maxoutput = link.max
       for _, o in ipairs(outputi) do
-         maxoutput = math.min(maxoutput, link.nwritable(o))
+         maxoutput = math.min(maxoutput, o:nwritable())
       end
       for _, i in ipairs(inputi) do
-         for _ = 1, math.min(link.nreadable(i), maxoutput) do
-            local p = receive(i)
+         for _ = 1, math.min(i:nreadable(), maxoutput) do
+            local p = i:receive()
             maxoutput = maxoutput - 1
             do local outputi = outputi
                for k = 1, #outputi do
-                  transmit(outputi[k], k == #outputi and p or packet.clone(p))
+                  outputi[k]:transmit(k == #outputi and p or p:clone())
                end
             end
          end
