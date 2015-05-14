@@ -46,7 +46,7 @@ local function pull_known_names(appbox, ...)
 end
 
 
--- creates the LuaState sandbox
+-- creates a coroutine-driven LuaState sandbox
 -- and loads with the SnS app
 -- returns a Lua table with a proxy for
 -- each global function and some values (name, zone)
@@ -133,7 +133,7 @@ function new_app(class, args)
    for _, fname in ipairs(get_global_functions(appbox)) do
       if not prevglobals[fname] then
          app[fname] = function(self, ...)
-            return stripassert(self.appbox:pcall(fname, ...))
+            return stripassert(self.appbox:resume(fname, ...))
          end
       end
    end
@@ -147,6 +147,15 @@ function new_app(class, args)
          return prevrelink(self)
       end
    end
+
+   assert(appbox:load([[
+      local cmd
+      repeat
+         cmd = coroutine.yield()
+         _G[cmd]()
+         local finish = cmd == 'finish'
+      until finish
+   ]], '[loop]'):resume())
 
    return app
 end
