@@ -173,10 +173,10 @@ function statebox:load(code, name)
    if self.L == nil then return false, "Can't load code on a closed statebox" end
    if not code then return self end
 
-   if C.luaL_loadbuffer(self.L, code, #code, name) ~= 0 then
+   if C.luaL_loadbuffer(self.L, code, #code, '@'..(name or code:match('[^\n]*'))) ~= 0 then
       local err = ffi.string(C.lua_tolstring(self.L, -1, nil))
       self:close()
-      return false, "Error loading startcode: "..tostring(err)
+      return false, string.format("Error loading %q: %s", name, tostring(err))
    end
 
    return self

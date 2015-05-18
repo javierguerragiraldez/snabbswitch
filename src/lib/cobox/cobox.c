@@ -20,7 +20,10 @@ static cobox_t cobox_array[MAX_CONTEXTS];
 typedef void (*voidfunc)();
 
 static void cobox_pcall(int index) {
-   lua_pcall(cobox_array[index].sbx.L, 0, 0, 0);
+   int ret = lua_pcall(cobox_array[index].sbx.L, 0, 0, 0);
+   if (ret != 0) {
+      printf ("lua_pcall returned %d\n%s\n", ret, lua_tostring(cobox_array[index].sbx.L, -1));
+   }
 }
 
 
@@ -70,4 +73,13 @@ int cobox_yield(int16_t index, int v) {
 
 int cobox_resume(int16_t index, int v) {
    return swap(0, index, v);
+}
+
+void cobox_destroy(int16_t index) {
+   ucontext_t *ctx = &context_array[index];
+   if (ctx->uc_stack.ss_sp != NULL) {
+      free (ctx->uc_stack.ss_sp);
+      ctx->uc_stack.ss_sp = NULL;
+      ctx->uc_stack.ss_size = 0;
+   }
 }

@@ -1,5 +1,5 @@
 
-local statebox = require ('lib.lua.statebox')
+local cobox = require ('lib.cobox.cobox')
 local freelist = require ('core.freelist')
 
 -- to wrap pcall()-like functions
@@ -22,9 +22,11 @@ end
 -- returns an array of all global function names in appbox
 local function get_global_functions(appbox)
    return stripassert(appbox:load[[
+      __functions_index = {}
       local o = {}
       for k, v in pairs(_G) do
          if type(v) == 'function' then
+            __functions_index[#o+1] = v
             o[#o+1] = k
          end
       end
@@ -52,7 +54,7 @@ end
 -- each global function and some values (name, zone)
 -- defined in the app
 function new_app(class, args)
-   local appbox = assert(statebox[[
+   local appbox = assert(cobox[[
       -- minimal libraries
       ffi = require ('ffi')
       freelist = require ('core.freelist')
@@ -109,11 +111,11 @@ function new_app(class, args)
    -- insert shared freelists
    require('core.packet').init()
    freelist.share_lists(function(t)
-      assert(appbox:load "freelist.receive_shared(...)":pcall(nil, t))
+      assert(appbox:load"freelist.receive_shared(...)":pcall(nil, t))
    end)
 
    -- jumpstart packet module
-   assert(appbox:load "packet.init()": pcall())
+   assert(appbox:load"packet.init()":pcall())
 
    -- load app module
    local prevglobals = get_global_functions(appbox)
@@ -130,10 +132,10 @@ function new_app(class, args)
    for _, fname in ipairs(prevglobals) do
       prevglobals[fname] = true
    end
-   for _, fname in ipairs(get_global_functions(appbox)) do
+   for func_index, fname in ipairs(get_global_functions(appbox)) do
       if not prevglobals[fname] then
-         app[fname] = function(self, ...)
-            return stripassert(self.appbox:resume(fname, ...))
+         app[fname] = function(self)
+            return assert(self.appbox:resume(func_index))
          end
       end
    end
@@ -143,19 +145,18 @@ function new_app(class, args)
    app.relink = function(self)
       self.appbox:pcall('setffitable', 'input', 'struct link *', self.input)
       self.appbox:pcall('setffitable', 'output', 'struct link *', self.output)
+
+      assert(appbox:load([[
+         while true do
+            local f = __functions_index[yield(0)]
+            if f then f() end
+         end
+      ]], '[loop]'):resume())
+
       if prevrelink then
          return prevrelink(self)
       end
    end
-
-   assert(appbox:load([[
-      local cmd
-      repeat
-         cmd = coroutine.yield()
-         _G[cmd]()
-         local finish = cmd == 'finish'
-      until finish
-   ]], '[loop]'):resume())
 
    return app
 end
