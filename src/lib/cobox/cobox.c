@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <setjmp.h>
 #include <ucontext.h>
 #include "lua.h"
 #include "lualib.h"
@@ -14,16 +15,23 @@ struct statebox {
 #define MAX_CONTEXTS (32)
 
 static ucontext_t context_array[MAX_CONTEXTS];
+static jmp_buf jump_array[MAX_CONTEXTS];
 static cobox_t cobox_array[MAX_CONTEXTS];
 
+static int swap(int16_t from, int16_t to, int v);
 
 typedef void (*voidfunc)();
 
 static void cobox_pcall(int index) {
+   if (!setjmp(jump_array[index])) {
+      longjmp(jump_array[0], 1);
+   }
    int ret = lua_pcall(cobox_array[index].sbx.L, 0, 0, 0);
    if (ret != 0) {
       printf ("lua_pcall returned %d\n%s\n", ret, lua_tostring(cobox_array[index].sbx.L, -1));
    }
+   // finish thread
+   longjmp(jump_array[0], 2);
 }
 
 
@@ -44,6 +52,14 @@ cobox_t *cobox_create(size_t stacksize) {
    ctx->uc_stack.ss_size = stacksize;
    ctx->uc_link = &context_array[0];
    makecontext(ctx, (voidfunc)cobox_pcall, 1, top);
+   // enter the context to setjmp
+   if (!setjmp(jump_array[0])) {
+      if (swapcontext(&context_array[0], &context_array[top]) < 0) {
+         printf ("swap (%d,%d) error\n", 0, top);
+         free(stack);
+         return NULL;
+      }
+   }
 
    cbx->sbx.L = luaL_newstate();
    if (! cbx->sbx.L) {
@@ -60,8 +76,8 @@ cobox_t *cobox_create(size_t stacksize) {
 static int yield_arg;
 static int swap(int16_t from, int16_t to, int v) {
    yield_arg = v < 0 ? 0 : v;
-   if (swapcontext(&context_array[from], &context_array[to]) < 0) {
-      return -1;
+   if (!setjmp(jump_array[from])) {
+      longjmp(jump_array[to], 1);
    }
    return yield_arg;
 }
