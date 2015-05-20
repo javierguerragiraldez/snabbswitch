@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <ucontext.h>
+// #include <ucontext.h>
+#include "jcontext.h"
 #include "lua.h"
 #include "lualib.h"
 #include "lauxlib.h"
@@ -13,7 +14,7 @@ struct statebox {
 
 #define MAX_CONTEXTS (32)
 
-static ucontext_t context_array[MAX_CONTEXTS];
+static jucontext_t context_array[MAX_CONTEXTS];
 static cobox_t cobox_array[MAX_CONTEXTS];
 
 
@@ -29,11 +30,11 @@ static void cobox_pcall(int index) {
 
 cobox_t *cobox_create(size_t stacksize) {
    static int16_t top = 1;
-   ucontext_t *ctx = &context_array[top];
+   jucontext_t *ctx = &context_array[top];
    cobox_t *cbx = &cobox_array[top];
    cbx->ctx = top;
 
-   if (getcontext(ctx) < 0) {
+   if (jgetcontext(ctx) < 0) {
       return NULL;
    }
    void *stack = malloc(stacksize);
@@ -43,7 +44,7 @@ cobox_t *cobox_create(size_t stacksize) {
    ctx->uc_stack.ss_sp = stack;
    ctx->uc_stack.ss_size = stacksize;
    ctx->uc_link = &context_array[0];
-   makecontext(ctx, (voidfunc)cobox_pcall, 1, top);
+   jmakecontext(ctx, (voidfunc)cobox_pcall, 1, top);
 
    cbx->sbx.L = luaL_newstate();
    if (! cbx->sbx.L) {
@@ -60,7 +61,7 @@ cobox_t *cobox_create(size_t stacksize) {
 static int yield_arg;
 static int swap(int16_t from, int16_t to, int v) {
    yield_arg = v < 0 ? 0 : v;
-   if (swapcontext(&context_array[from], &context_array[to]) < 0) {
+   if (jswapcontext(&context_array[from], &context_array[to]) < 0) {
       return -1;
    }
    return yield_arg;
@@ -76,7 +77,7 @@ int cobox_resume(int16_t index, int v) {
 }
 
 void cobox_destroy(int16_t index) {
-   ucontext_t *ctx = &context_array[index];
+   jucontext_t *ctx = &context_array[index];
    if (ctx->uc_stack.ss_sp != NULL) {
       free (ctx->uc_stack.ss_sp);
       ctx->uc_stack.ss_sp = NULL;

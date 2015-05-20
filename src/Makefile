@@ -19,6 +19,7 @@ LUASRC = $(shell find . -regex '[^\#]*\.lua' -printf '%P ')
 PFLUASRC = $(shell cd ../deps/pflua/src && \
 	         find . -regex '[^\#]*\.lua' -printf '%P ')
 CSRC   = $(shell find . -regex '[^\#]*\.c'   -printf '%P ')
+SSRC   = $(shell find . -regex '[^\#]*\.S'   -printf '%P ')
 CHDR   = $(shell find . -regex '[^\#]*\.h'   -printf '%P ')
 ASM    = $(shell find . -regex '[^\#]*\.dasc' -printf '%P ')
 RMSRC  = $(shell find . -name  README.md.src -printf '%P ')
@@ -29,6 +30,7 @@ INCSRC = $(shell find . -regex '[^\#]*\.inc' -printf '%P ')
 LUAOBJ := $(patsubst %.lua,obj/%_lua.o,$(LUASRC))
 PFLUAOBJ := $(patsubst %.lua,obj/%_lua.o,$(PFLUASRC))
 COBJ   := $(patsubst %.c,obj/%_c.o,    $(CSRC))
+SOBJ   := $(patsubst %.S,obj/%_S.o,    $(SSRC))
 HOBJ   := $(patsubst %.h,obj/%_h.o,    $(CHDR))
 ASMOBJ := $(patsubst %.dasc,obj/%_dasc.o,   $(ASM))
 JITOBJS:= $(patsubst %,obj/jit_%.o,$(JITSRC))
@@ -51,7 +53,7 @@ TESTSCRIPTS = $(shell find . -name "selftest.sh" -executable | xargs)
 
 PATH := ../deps/luajit/usr/local/bin:$(PATH)
 
-snabb: $(LUAOBJ) $(PFLUAOBJ) $(HOBJ) $(COBJ) $(ASMOBJ) $(INCOBJ) $(LUAJIT_A)
+snabb: $(LUAOBJ) $(PFLUAOBJ) $(HOBJ) $(COBJ) $(SOBJ) $(ASMOBJ) $(INCOBJ) $(LUAJIT_A)
 	$(E) "SUBMODULES"
 	@if test ! -f ../deps/luajit.vsn			|| \
 	    test ! -f ../deps/ljsyscall.vsn			|| \
@@ -150,6 +152,10 @@ $(PFLUAOBJ): obj/%_lua.o: ../deps/pflua/src/%.lua Makefile
 $(COBJ): obj/%_c.o: %.c $(CHDR) Makefile | $(OBJDIR)
 	$(E) "C         $@"
 	$(Q) gcc $(DEBUG) -Wl,-E -I ../deps/luajit/src -I . -include $(CURDIR)/../gcc-preinclude.h -c -Wall -Werror -o $@ $<
+
+$(SOBJ): obj/%_S.o: %.S Makefile | $(OBJDIR)
+	$(E) "S         $@"
+	$(Q) gcc $(DEBUG) -Wl,-E -c -Wall -Werror -o $@ $<
 
 obj/lib/checksum_c.o: lib/checksum.c
 	$(E) "C(O2)     $@"
