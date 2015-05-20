@@ -25,6 +25,8 @@ static void cobox_pcall(int index) {
    if (ret != 0) {
       printf ("lua_pcall returned %d\n%s\n", ret, lua_tostring(cobox_array[index].sbx.L, -1));
    }
+   jucontext_t *ctx = &context_array[index];
+   jswapcontext(ctx, ctx->uc_link);
 }
 
 
