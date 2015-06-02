@@ -129,17 +129,19 @@ function Queue:push(v)
    until C.cas_int(_fp(self, 'free'), itm, self.l[itm].next)
 
    self.l[itm].v = v
+   self.l[itm].next = -1
 
    -- push at tail
-   itm.next = -1
-   local tail = nil
+   local tail = nil, done = false
    repeat
       tail = self.tail
-   until C.cas_int(_fp(tail, 'next'), -1, itm)
-   repeat
-      tail = self.tail
-      if self.l[tail].next == -1 then break end
-   until C.cas_int(_fp(self, 'tail'), tail, self.l[tail].next)
+      done = C.cas_int(_fp(self.l[tail], 'next'), -1, itm)
+      if not done then
+         C.cas_int(_fp(self, 'tail'), tail, self.l[tail].next)
+      end
+   until done
+   C.cas_int(_fp(self, 'tail'), tail, itm)
+
    return itm
 end
 
@@ -149,8 +151,9 @@ function Queue:pop()
    -- pop head node
    repeat
       itm = self.head
-      if itm == -1 then return nil end
+      if self.l[itm].next == -1 then return nil end
    until C.cas_int(_fp(self, 'head'), itm, self.l[itm].next)
+   itm = self.l[itm].next
 
    local v = self.l[itm].v
    self.l[itm].v = nil
@@ -159,7 +162,8 @@ function Queue:pop()
    repeat
       self.l[itm].next = self.free
    until C.cas_int(_fp(self, 'free'), self.l[itm].next, itm)
-   return itm.v
+
+   return v
 end
 
 -- END Queue object
