@@ -132,7 +132,8 @@ function Queue:push(v)
    self.l[itm].next = -1
 
    -- push at tail
-   local tail = nil, done = false
+   local tail = nil
+   local done = false
    repeat
       tail = self.tail
       done = C.cas_int(_fp(self.l[tail], 'next'), -1, itm)
@@ -167,3 +168,48 @@ function Queue:pop()
 end
 
 -- END Queue object
+-- BEGIN Ring object
+
+local Ring = {}
+Ring.__index = Ring
+
+
+function Ring:newtype(type)
+   local rtype = ffi.typeof([[
+      struct {
+         int head, tail, size;
+         $ l [?];
+      }
+   ]], ffi.typeof(type))
+   return ffi.metatype(rtype, self)
+end
+
+
+function Ring:__new(size)
+   local r = ffi.new(self, size, 0, 0, size)
+   return r
+end
+
+
+function Ring:push(v)
+   local tail = nil
+   repeat
+      tail = self.tail
+      if tail == self.head then return nil end
+   until C.cas_int(_fp(self, 'tail'), tail, (tail+1)%self.size)
+   self.l[tail] = v
+   return tail
+end
+
+
+function Ring:pull()
+   local head = nil
+   repeat
+      head = self.head
+   until C.cas_int(_fp(self, 'head'), head, (head+1)%self.size)
+   if head == self.tail then return nil end
+   return self.l[head]
+end
+
+
+-- END Ring object
