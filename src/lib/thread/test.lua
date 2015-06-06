@@ -1,6 +1,6 @@
 module (..., package.seeall)
 
-local Thread = require('lib.thread.init')
+local Thread = require('lib.thread.thread')
 
 function selftest()
    print ('test')
