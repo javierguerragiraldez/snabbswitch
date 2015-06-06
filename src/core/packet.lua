@@ -31,7 +31,7 @@ else
 end
 local packets_fl = packets_fl
 
-local stats_add = nil
+local stats_count = stats:new()
 
 -- Return an empty packet.
 function allocate ()
@@ -91,11 +91,7 @@ local function free_internal (p)
 end
 
 function free (p)
-   if not stats_add then
-      stats.attach()
-      stats_add = stats.add
-   end
-   stats_add(p)
+   stats_count:add(p)
    free_internal(p)
 end
 

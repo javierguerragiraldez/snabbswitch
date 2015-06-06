@@ -27,7 +27,7 @@ configuration = config.new()
 -- Counters for statistics.
 -- TODO: Move these over to the counters framework
 breaths = 0			-- Total breaths taken
-stats.new()
+local stats_count = stats:new()
 
 -- Breathing regluation to reduce CPU usage when idle by calling usleep(3).
 --
@@ -247,7 +247,7 @@ function pace_breathing ()
       end
       nextbreath = math.max(nextbreath + 1/Hz, monotonic_now)
    else
-      if stats.breathe() > 0 then
+      if stats_count:breathe() <= 0 then
          sleep = math.min(sleep + 1, maxsleep)
          C.usleep(sleep)
       else
@@ -316,7 +316,7 @@ local reportedbreaths = nil
 function report_load ()
    if lastloadreport then
       local interval = now() - lastloadreport
-      local newfrees, newbytes, newbits = stats.report()
+      local newfrees, newbytes, newbits = stats_count:report()
       local newbreaths = breaths - reportedbreaths
       local fps = math.floor(newfrees/interval)
       local fbps = math.floor(newbits/interval)

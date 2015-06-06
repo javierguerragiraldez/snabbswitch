@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -18,6 +19,10 @@
       char modulename[];
    };
 
+
+uint64_t atomic_add_u64(uint64_t *p, uint64_t x) {
+   return __atomic_add_fetch (p, x, __ATOMIC_SEQ_CST);
+}
 
 _Bool cas_int(int *ptr, int expected, int desired) {
    return __atomic_compare_exchange_n(ptr, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);

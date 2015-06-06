@@ -1,56 +1,50 @@
 
-local counter = require('lib.ipc.shmem.counter')
-local base = nil
+local ffi = require('ffi')
+local C = ffi.C
+local S = require("syscall")
+local shm = require('core.shm')
+
+ffi.cdef [[
+   uint64_t atomic_add_u64(uint64_t *p, uint64_t x);
+
+   typedef struct {
+      uint64_t frees, freebytes, freebits;
+   } group;
+]]
 
 local stats = {}
+stats.__index = stats
 
-function stats.new()
-   local cntr = counter:new{filename="free_packet_stats.shmem"}
-   cntr:register('frees', 0)
-   cntr:register('freebytes', 0)
-   cntr:register('freebits', 0)
-   cntr:register('lastfrees', 0)
-   cntr:register('lastfreebytes', 0)
-   cntr:register('lastfreebits', 0)
-   cntr:register('reportedfrees', 0)
-   cntr:register('reportedfreebytes', 0)
-   cntr:register('reportedfreebits', 0)
-   base = cntr:base()
+
+function stats:new()
+   return setmetatable({
+      threadlocal = shm.map(('core.%d.stats'):format(S.gettid()), 'group'),
+      global = shm.map('core.stats', 'group'),
+   }, self)
 end
 
 
-function stats.attach()
-   local cntr = counter:attach{filename="free_packet_stats.shmem"}
-   base = cntr:base()
+local function _p(obj, field)
+   return ffi.cast('uint64_t *', ffi.cast('unsigned char *', obj)+ffi.offsetof(obj, field))
 end
 
 
-function stats.add(p)
-   base[0] = base[0] + 1                                        -- frees
-   base[1] = base[1] + p.length                                 -- freebytes
-   -- Calculate bits of physical capacity required for packet on 10GbE
-   -- Account for minimum data size and overhead of CRC and inter-packet gap
-   base[2] = base[2] + (math.max(p.length, 46) + 4 + 5) * 8     -- freebits
+function stats:add(p)
+   self.threadlocal.frees = self.threadlocal.frees + 1
+   self.threadlocal.freebytes = self.threadlocal.freebytes + p.length
+   self.threadlocal.freebits = self.threadlocal.freebits + (math.max(p.length, 46) + 4 + 5) * 8
 end
 
 
-function stats.breathe()
-   local newfrees = base[0] - base[3]       -- frees - lastfrees
-   for i = 0, 3 do
-      base[i+3] = base[i]
-   end
+function stats:breathe()
+   local newfrees = tonumber(self.threadlocal.frees)
+   C.atomic_add_u64(_p(self.global, 'frees'), self.threadlocal.frees)
+   C.atomic_add_u64(_p(self.global, 'freebytes'), self.threadlocal.freebytes)
+   C.atomic_add_u64(_p(self.global, 'freebits'), self.threadlocal.freebits)
+   self.threadlocal.frees = 0
+   self.threadlocal.freebytes = 0
+   self.threadlocal.freebits = 0
    return newfrees
-end
-
-
-function stats.report()
-   local newfrees = base[0] - base[6]
-   local newbytes = base[1] - base[7]
-   local newbits  = base[2] - base[8]
-   for i = 0, 3 do
-      base[i+6] = base[i]
-   end
-   return newfrees, newbytes, newbits
 end
 
 
