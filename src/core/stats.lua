@@ -18,8 +18,8 @@ stats.__index = stats
 
 function stats:new()
    return setmetatable({
-      threadlocal = shm.map(('core.%d.stats'):format(S.gettid()), 'group'),
-      global = shm.map('core.stats', 'group'),
+      threadlocal = shm.map('/core.stats', 'group'),
+      global = shm.map('//core.stats', 'group'),
    }, self)
 end
 
