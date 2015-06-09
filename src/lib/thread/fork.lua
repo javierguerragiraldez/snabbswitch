@@ -6,8 +6,11 @@ local lib = require('core.lib')
 
 local function Spawn(modulename)
    local pid = S.fork()
-   if pid ~= 0 then return pid end
-   require(modulename)
+   if pid == 0 then
+      require(modulename)
+      os.exit()
+   end
+   return pid
 end
 
 
