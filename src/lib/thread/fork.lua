@@ -14,9 +14,15 @@ local function Spawn(modulename)
 end
 
 
-
 function selftest()
-   local nthreads = 3
+   print ('threads', 'frees/sec', 'frees/sec/thread')
+   for n = 0, 20, 4 do
+      try_n(n)
+   end
+end
+
+
+function try_n(nthreads)
    local stats_count = stats:new()
 
    stats_count.global.frees = 0
@@ -27,6 +33,7 @@ function selftest()
    local invspawn = {}
    for i = 1, nthreads do
       local pid = Spawn('lib.thread.test_code')
+--       local pid = Spawn('lib.thread.test_tunnel')
       spawned[i] = pid
       invspawn[pid] = i
    end
@@ -36,9 +43,9 @@ function selftest()
       if not pid then
          error(tostring(err))
       end
-      print (('pid %d finished'):format(pid))
+--       print (('pid %d finished'):format(pid))
       invspawn[pid] = nil
    end
    local total_packets = tonumber(stats_count.global.frees)
-   print (nthreads, lib.comma_value(total_packets), lib.comma_value(total_packets/nthreads))
+   print (nthreads, lib.comma_value(total_packets/10), lib.comma_value(total_packets/nthreads/10))
 end

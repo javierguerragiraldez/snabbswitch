@@ -12,4 +12,4 @@ config.app(c, 'sink', 'apps.basic.sink')
 config.link(c, 'source.output -> sink.input')
 engine.configure(c)
 
-engine.main{duration=1, report={}}
+engine.main{duration=10, report={}}
