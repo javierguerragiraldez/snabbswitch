@@ -27,7 +27,7 @@ configuration = config.new()
 -- Counters for statistics.
 -- TODO: Move these over to the counters framework
 breaths = 0			-- Total breaths taken
-local stats_count = stats:new()
+local stats_count = nil
 
 -- Breathing regluation to reduce CPU usage when idle by calling usleep(3).
 --
@@ -100,6 +100,7 @@ end
 -- Successive calls to configure() will migrate from the old to the
 -- new app network by making the changes needed.
 function configure (new_config)
+   stats_count = stats:new()
    local actions = compute_config_actions(configuration, new_config)
    apply_config_actions(actions, new_config)
    configuration = new_config
