@@ -9,28 +9,42 @@ local sandbox_loader = require('core.sandbox_loader')
 -- Initially there are no apps or links.
 function new ()
    return {
+      procs = {},        -- list of {mask}
       apps = {},         -- list of {name, class, args}
       links = {}         -- table with keys like "a.out -> b.in"
    }
 end
 
+-- API: Add a process to the configuration.
+--
+-- config.proc(c, name, {specifications})
+-- the specifications should allow the integrator
+-- to restrict on which CPU(s) will this process
+-- execute.
+function proc(config, name, specs)
+   assert(type(name) == "string", "name must be a string")
+   config.procs[name] = { mask=specs.mask }
+end
+
 -- API: Add an app to the configuration.
 --
--- config.app(c, name, class, arg):
+-- config.app(c, name, class, arg [, proc]):
 --   c is a config object.
 --   name is the name of this app in the network (a string).
 --   class is the Lua object with a class:new(arg) method to create the app.
 --   arg is the app's configuration (to be passed to new()).
+--   proc is the process name to run this app
 --
 -- Example: config.app(c, "nic", Intel82599, {pciaddr = "0000:00:01.00"})
-function app (config, name, class, arg)
+function app (config, name, class, arg, proc)
 --    arg = arg or "nil"
    assert(type(name) == "string", "name must be a string")
    if type(class) == 'string' then
       class = sandbox_loader(class)
    end
    assert(type(class) == "table", "class must be a table")
-   config.apps[name] = { class = class, arg = arg}
+   assert(type(proc) == 'string', "proc must be a string")
+   config.apps[name] = { class = class, arg = arg, proc=proc}
 end
 
 -- API: Add a link to the configuration.
@@ -58,6 +72,10 @@ end
 
 function canonical_link (spec)
    return format_link(parse_link(spec))
+end
+
+function short_linkname(spec)
+   return ('%s.%s-%s.%s'):format(parse_link(spec))
 end
 
 -- Return a Lua object for the arg to an app. Arg may be a table or a

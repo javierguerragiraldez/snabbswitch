@@ -119,11 +119,12 @@ end
 function compute_config_actions (old, new)
    local actions = { start={}, restart={}, reconfig={}, keep={}, stop={} }
    for appname, info in pairs(new.apps) do
-      local class, arg = info.class, info.arg
+      local class, arg, proc = info.class, info.arg, info.proc
       local action = nil
       if not old.apps[appname]                then action = 'start'
       elseif old.apps[appname].class ~= class then action = 'restart'
       elseif not lib.equal(old.apps[appname].arg, arg)
+            or old.apps[appname].proc ~= proc
                                               then action = 'reconfig'
       else                                         action = 'keep'  end
       table.insert(actions[action], appname)
