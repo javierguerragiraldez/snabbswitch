@@ -5,6 +5,7 @@ local lib    = require("core.lib")
 local link   = require("core.link")
 local config = require("core.config")
 local timer  = require("core.timer")
+local stats  = require('core.stats')
 local zone   = require("jit.zone")
 local ffi    = require("ffi")
 local C      = ffi.C
@@ -26,9 +27,7 @@ configuration = config.new()
 -- Counters for statistics.
 -- TODO: Move these over to the counters framework
 breaths = 0			-- Total breaths taken
-frees   = 0			-- Total packets freed
-freebits = 0			-- Total packet bits freed (for 10GbE)
-freebytes = 0			-- Total packet bytes freed
+local stats_count = nil
 
 -- Breathing regluation to reduce CPU usage when idle by calling usleep(3).
 --
@@ -101,6 +100,7 @@ end
 -- Successive calls to configure() will migrate from the old to the
 -- new app network by making the changes needed.
 function configure (new_config)
+   stats_count = stats:new()
    local actions = compute_config_actions(configuration, new_config)
    apply_config_actions(actions, new_config)
    configuration = new_config
@@ -232,9 +232,6 @@ function main (options)
 end
 
 local nextbreath
-local lastfrees = 0
-local lastfreebits = 0
-local lastfreebytes = 0
 -- Wait between breaths to keep frequency with Hz.
 function pace_breathing ()
    if Hz then
@@ -246,15 +243,12 @@ function pace_breathing ()
       end
       nextbreath = math.max(nextbreath + 1/Hz, monotonic_now)
    else
-      if lastfrees == frees then
-	 sleep = math.min(sleep + 1, maxsleep)
-	 C.usleep(sleep)
+      if stats_count:breathe() <= 0 then
+         sleep = math.min(sleep + 1, maxsleep)
+         C.usleep(sleep)
       else
-	 sleep = math.floor(sleep/2)
+         sleep = math.floor(sleep/2)
       end
-      lastfrees = frees
-      lastfreebytes = freebytes
-      lastfreebits = freebits
    end
 end
 
@@ -314,14 +308,11 @@ end
 --   fpb  - frees per breath
 --   bpp  - bytes per packet (average packet size)
 local lastloadreport = nil
-local reportedfrees = nil
 local reportedbreaths = nil
 function report_load ()
    if lastloadreport then
       local interval = now() - lastloadreport
-      local newfrees   = frees - reportedfrees
-      local newbytes   = freebytes - reportedfreebytes
-      local newbits    = freebits - reportedfreebits
+      local newfrees, newbytes, newbits = stats_count:report()
       local newbreaths = breaths - reportedbreaths
       local fps = math.floor(newfrees/interval)
       local fbps = math.floor(newbits/interval)
@@ -336,9 +327,6 @@ function report_load ()
 	    sleep))
    end
    lastloadreport = now()
-   reportedfrees = frees
-   reportedfreebits = freebits
-   reportedfreebytes = freebytes
    reportedbreaths = breaths
 end
 

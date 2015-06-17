@@ -8,6 +8,7 @@ local C = ffi.C
 local freelist = require("core.freelist")
 local lib      = require("core.lib")
 local memory   = require("core.memory")
+local stats    = require('core.stats')
 local freelist_add, freelist_remove, freelist_nfree = freelist.add, freelist.remove, freelist.nfree
 
 require("core.packet_h")
@@ -23,6 +24,7 @@ local max_packets = 1e5
 local packet_allocation_step = 1000
 local packets_allocated = 0
 local packets_fl = freelist.new("struct packet *", max_packets)
+local stats_count = nil
 
 -- Return an empty packet.
 function allocate ()
@@ -79,14 +81,10 @@ function from_string (d)         return from_pointer(d, #d) end
 local function free_internal (p)
    p.length = 0
    freelist_add(packets_fl, p)
-end   
+end
 
 function free (p)
-   engine.frees = engine.frees + 1
-   engine.freebytes = engine.freebytes + p.length
-   -- Calculate bits of physical capacity required for packet on 10GbE
-   -- Account for minimum data size and overhead of CRC and inter-packet gap
-   engine.freebits = engine.freebits + (math.max(p.length, 46) + 4 + 5) * 8
+   stats_count:add(p)
    free_internal(p)
 end
 
@@ -97,6 +95,9 @@ function data (p) return p.data end
 function length (p) return p.length end
 
 function preallocate_step()
+   if not stats_count then
+      stats_count = stats:new()
+   end
    if _G.developer_debug then
       assert(packets_allocated + packet_allocation_step <= max_packets)
    end
