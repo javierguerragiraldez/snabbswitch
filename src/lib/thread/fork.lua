@@ -15,8 +15,8 @@ end
 
 
 function selftest()
-   print ('threads', 'frees/sec', 'frees/sec/thread')
-   for n = 0, 20, 4 do
+   print ('threads', 'frees/sec', 'frees/sec/thread', 'Gbit/sec')
+   for n = 0, 20 do
       try_n(n)
    end
 end
@@ -32,8 +32,8 @@ function try_n(nthreads)
    local spawned = {}
    local invspawn = {}
    for i = 1, nthreads do
-      local pid = Spawn('lib.thread.test_code')
---       local pid = Spawn('lib.thread.test_tunnel')
+--       local pid = Spawn('lib.thread.test_code')
+      local pid = Spawn('lib.thread.test_tunnel')
       spawned[i] = pid
       invspawn[pid] = i
    end
@@ -47,5 +47,7 @@ function try_n(nthreads)
       invspawn[pid] = nil
    end
    local total_packets = tonumber(stats_count.global.frees)
-   print (nthreads, lib.comma_value(total_packets/10), lib.comma_value(total_packets/nthreads/10))
+   print (nthreads, lib.comma_value(total_packets/10),
+      lib.comma_value(total_packets/nthreads/10),
+      lib.comma_value(tonumber(stats_count.global.freebits)/10))
 end
