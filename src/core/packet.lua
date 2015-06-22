@@ -31,7 +31,7 @@ else
 end
 local packets_fl = packets_fl
 
-local stats_count = stats:new()
+local stats_count = stats()
 
 -- Return an empty packet.
 function allocate ()

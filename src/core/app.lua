@@ -100,7 +100,7 @@ end
 -- Successive calls to configure() will migrate from the old to the
 -- new app network by making the changes needed.
 function configure (new_config)
-   stats_count = stats:new()
+   stats_count = stats()
    local actions = compute_config_actions(configuration, new_config)
    apply_config_actions(actions, new_config)
    configuration = new_config
@@ -238,6 +238,7 @@ function main (options)
 end
 
 local nextbreath
+local lastfrees = 0
 -- Wait between breaths to keep frequency with Hz.
 function pace_breathing ()
    if Hz then
@@ -249,12 +250,13 @@ function pace_breathing ()
       end
       nextbreath = math.max(nextbreath + 1/Hz, monotonic_now)
    else
-      if stats_count:breathe() <= 0 then
+      if lastfrees == stats_count.frees then
          sleep = math.min(sleep + 1, maxsleep)
          C.usleep(sleep)
       else
          sleep = math.floor(sleep/2)
       end
+      lastfrees = stats_count.frees
    end
 end
 

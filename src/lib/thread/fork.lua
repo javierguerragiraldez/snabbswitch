@@ -23,11 +23,7 @@ end
 
 
 function try_n(nthreads)
-   local stats_count = stats:new()
-
-   stats_count.global.frees = 0
-   stats_count.global.freebytes = 0
-   stats_count.global.freebits = 0
+   local stats_count = stats()
 
    local spawned = {}
    local invspawn = {}
@@ -45,9 +41,10 @@ function try_n(nthreads)
       end
 --       print (('pid %d finished'):format(pid))
       invspawn[pid] = nil
+      stats_count:accumulate(stats(pid))
    end
-   local total_packets = tonumber(stats_count.global.frees)
+   local total_packets = tonumber(stats_count.frees)
    print (nthreads, lib.comma_value(total_packets/10),
       lib.comma_value(total_packets/nthreads/10),
-      lib.comma_value(tonumber(stats_count.global.freebits)/10))
+      lib.comma_value(tonumber(stats_count.freebits)/10))
 end

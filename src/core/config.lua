@@ -36,14 +36,14 @@ end
 --   proc is the process name to run this app
 --
 -- Example: config.app(c, "nic", Intel82599, {pciaddr = "0000:00:01.00"})
-function app (config, name, class, arg, proc)
+function app (config, name, class, arg)
 --    arg = arg or "nil"
    assert(type(name) == "string", "name must be a string")
    if type(class) == 'string' then
       class = sandbox_loader(class)
    end
    assert(type(class) == "table", "class must be a table")
-   assert(type(proc) == 'string', "proc must be a string")
+--    assert(type(proc) == 'string', "proc must be a string")
    config.apps[name] = { class = class, arg = arg, proc=proc}
 end
 
