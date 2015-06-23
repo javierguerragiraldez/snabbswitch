@@ -226,7 +226,6 @@ end
 
 local function new_app_vm()
    local vm = lua_State_t()
-   vm:add_globals({_shared_packets_fl = _shared_packets_fl})
    assert(vm:load([[
       ffi = require('ffi')
       require('lib.lua.class')

@@ -1,22 +1,18 @@
 module(...,package.seeall)
 
 local ffi = require("ffi")
+local shm = require('core.shm')
 
-function maketype(type, sfx)
+local function maketype(type, size)
    return ffi.typeof([[
       struct {
          int nfree, max;
-         $ list[?];
-      }
-   ]]..(sfx or ''), ffi.typeof(type))
+         $ list[$];
+      } ]], ffi.typeof(type), size)
 end
 
 function new (type, size)
-   return maketype(type)(size, {nfree=0, max=size})
-end
-
-function receive(type, ptr)
-   return ffi.cast(maketype(type, '*'), ptr)
+   return shm.map('/packet_freelist', maketype(type, size))
 end
 
 function add (freelist, element)

@@ -23,13 +23,7 @@ local max_payload = tonumber(C.PACKET_PAYLOAD_SIZE)
 local max_packets = 1e5
 local packet_allocation_step = 1000
 local packets_allocated = 0
-if rawget(_G, '_shared_packets_fl') then
-   packets_fl = freelist.receive('struct packet *', _shared_packets_fl)
-else
-   packets_fl = freelist.new("struct packet *", max_packets)
-   _G._shared_packets_fl = packets_fl
-end
-local packets_fl = packets_fl
+local packets_fl = freelist.new('struct packet *', max_packets)
 
 local stats_count = stats()
 
