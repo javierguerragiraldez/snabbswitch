@@ -4,17 +4,46 @@ local S = require('syscall')
 local stats = require('core.stats')
 local lib = require('core.lib')
 
-local function Spawn(modulename)
-   local pid = S.fork()
-   if pid == 0 then
-      require(modulename)
-      os.exit()
+
+local Spawn, Wait = nil, nil
+do
+   local names = {}
+   function Spawn(modulename)
+      local pid = S.fork()
+      if pid == 0 then
+         require(modulename)
+         os.exit()
+      end
+      names[pid] = modulename
+      return pid
    end
-   return pid
+   function Wait()
+      if next(names) == nil then return nil end
+      local pid = assert(S.waitpid(-1, 0))
+      local name = names[pid]
+      names[pid] = nil
+      return pid, name
+   end
+end
+
+
+local function waitandshow()
+   local pid, name = Wait()
+   local stat = stats(pid)
+   return string.format ("%s: %s frees", name, lib.comma_value(stat.frees))
 end
 
 
 function selftest()
+   local f1 = Spawn('lib.thread.inter_send')
+   local f2 = Spawn('lib.thread.inter_sink')
+
+   print (waitandshow())
+   print (waitandshow())
+end
+
+
+function selftest_perf()
    print ('threads', 'frees/sec', 'frees/sec/thread', 'Gbit/sec')
    for n = 0, 20 do
       try_n(n)
