@@ -107,3 +107,4 @@ function preallocate_step()
    packet_allocation_step = 2 * packet_allocation_step
 end
 
+ffi.metatype('struct packet', {__index = _M})
