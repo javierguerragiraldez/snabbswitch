@@ -232,6 +232,7 @@ local function new_app_vm()
       engine = require('core.app')
       packet = require('core.packet')
       link = require('core.link')
+      inter_link = require('lib.thread.inter_link')
    ]], '[app frame]'):pcall())
    return vm
 end
@@ -324,7 +325,7 @@ local function sandbox_loader(name)
             vm = vm,
             name = self.name,
             zone = self.name,
-            inject_links = inject_links,
+--             inject_links = inject_links,
          }, prevglobals)
       end,
    }
