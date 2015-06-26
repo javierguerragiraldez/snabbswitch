@@ -1,9 +1,13 @@
 
+for i, l in ipairs(input) do
+   input[i] = inter_link(l)
+end
+
+
 function push()
-   for _, i in ipairs(input) do
-      for _ = 1, link.nreadable(i) do
-         local p = link.receive(i)
-         packet.free(p)
+   for _, l in ipairs(input) do
+      while not l:empty() do
+         l:receive():free()
       end
    end
 end

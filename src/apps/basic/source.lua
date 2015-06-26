@@ -2,15 +2,19 @@
 local size = size or 60
 local pkt = packet.from_pointer (ffi.new("char[?]", size), size)
 
+for i, l in ipairs(output) do
+   output[i] = inter_link(l)
+end
+
 function pull()
-   for _, o in ipairs(output) do
-      for i = 1, link.nwritable(o) do
-         link.transmit(o, packet.clone(pkt))
+   for _, l in ipairs(output) do
+      while not l:full() do
+         l:transmit(pkt:clone())
       end
    end
 end
 
 
 function stop()
-   packet.free(pkt)
+   pkt:free()
 end
