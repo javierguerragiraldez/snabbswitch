@@ -115,6 +115,7 @@ end
 --- if src is full, releases packets from back part
 --- if it's still full, the packet is dropped (and accounted)
 function inter_link:transmit(p)
+--    print ('transmit:', self, p)
    local src = self.src
    if src:full() then
       while not src:back_empty() do
@@ -134,6 +135,8 @@ end
 
 
 function inter_link:full()
+--    print ('inter_link:full', self.src.head, self.src.mid, self.src.tail,
+--       '->', self.src:full(), self.src:back_empty())
    return self.src:full() and self.src:back_empty()
 end
 
@@ -146,8 +149,13 @@ end
 --- front part is empty, swapping packet pointers between
 --- rings as it advances.
 function inter_link:receive()
+--    print ('interlink:receive', self)
    local dst = self.dst
+   while not dst:full() do
+      dst:add(packet.allocate())
+   end
    if dst:back_empty() then
+      local src = self.src
       while not src:front_empty() and not dst:front_empty() do
         dst.packets[dst.mid], src.packets[src.mid] = src.packets[src.mid], dst.packets[dst.mid]
         src.mid = band(src.mid+1, mask)
@@ -159,14 +167,17 @@ function inter_link:receive()
    if p then
       self.rxpackets = self.rxpackets + 1
       self.rxbytes = self.rxbytes + p.length
-      while not dst:full() do
-         dst:add(packet.allocate())
-      end
    end
+--    print ('<==', p)
    return p
 end
 
 function inter_link:empty()
+   while not self.dst:full() do
+      self.dst:add(packet.allocate())
+   end
+--    print ('inter_link:empty', self.dst.head, self.dst.mid, self.dst.tail,
+--       '->', self.dst:back_empty(), self.dst:front_empty(), self.src:front_empty())
    return self.dst:back_empty() and (
       self.dst:front_empty() or self.src:front_empty())
 end

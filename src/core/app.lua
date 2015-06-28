@@ -9,6 +9,7 @@ local stats  = require('core.stats')
 local zone   = require("jit.zone")
 local ffi    = require("ffi")
 local C      = ffi.C
+local shm    = require('core.shm')
 require("core.packet_h")
 
 -- Set to true to enable logging
@@ -195,19 +196,25 @@ function apply_config_actions (actions, conf)
    -- Setup links: create (or reuse) and renumber.
    for linkspec in pairs(conf.links) do
       local fa, fl, ta, tl = config.parse_link(linkspec)
-      if not new_app_table[fa] then error("no such app: " .. fa) end
-      if not new_app_table[ta] then error("no such app: " .. ta) end
-      -- Create or reuse a link and assign/update receiving app index
-      local link = link_table[linkspec] or link.new()
-      link.receiving_app = app_name_to_index[ta]
-      -- Add link to apps
-      new_app_table[fa].output[fl] = link
-      table.insert(new_app_table[fa].output, link)
-      new_app_table[ta].input[tl] = link
-      table.insert(new_app_table[ta].input, link)
-      -- Remember link
-      new_link_table[linkspec] = link
-      table.insert(new_link_array, link)
+--       if not new_app_table[fa] then error("no such app: " .. fa) end
+--       if not new_app_table[ta] then error("no such app: " .. ta) end
+      if new_app_table[fa] or new_app_table[ta] then
+         -- Create or reuse a link and assign/update receiving app index
+         local link = link_table[linkspec] or shm.map(linkspec, 'struct link') -- or link.new()
+         if new_app_table[fa] then
+            new_app_table[fa].output[fl] = link
+            table.insert(new_app_table[fa].output, link)
+         end
+         if new_app_table[ta] then
+            link.receiving_app = app_name_to_index[ta]
+            new_app_table[ta].input[tl] = link
+            table.insert(new_app_table[ta].input, link)
+         end
+         -- Add link to apps
+         -- Remember link
+         new_link_table[linkspec] = link
+         table.insert(new_link_array, link)
+      end
    end
    -- commit changes
    app_table, link_table = new_app_table, new_link_table
@@ -285,7 +292,7 @@ function breathe ()
          if firstloop or link.has_new_data then
             link.has_new_data = false
             local receiver = app_array[link.receiving_app]
-            if receiver.push and not receiver.dead then
+            if receiver and receiver.push and not receiver.dead then
                zone(receiver.zone)
                with_restart(receiver, receiver.push)
                zone()

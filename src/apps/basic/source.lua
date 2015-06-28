@@ -8,6 +8,7 @@ end
 
 function pull()
    for _, l in ipairs(output) do
+--       print ('source pull: link', l, 'full:', l:full())
       while not l:full() do
          l:transmit(pkt:clone())
       end

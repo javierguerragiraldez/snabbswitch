@@ -35,6 +35,7 @@ end
 
 
 function selftest()
+   S.util.rm('/var/run/snabb/interlink')
    local f1 = Spawn('lib.thread.inter_send')
    local f2 = Spawn('lib.thread.inter_sink')
 
