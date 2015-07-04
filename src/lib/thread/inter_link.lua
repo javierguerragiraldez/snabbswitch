@@ -1,7 +1,9 @@
 
 local ffi = require('ffi')
 local C = ffi.C
+local S = require('syscall')
 local band = require("bit").band
+local lib = require('core.lib')
 local shm = require('core.shm')
 local packet = require('core.packet')
 
@@ -106,7 +108,7 @@ inter_link.__index = inter_link
 
 function inter_link:__new(name)
    if ffi.istype(self, name) then return name end
-   return shm.map(name, self)
+   return shm.map(name, self, false, S.getpgid())
 end
 
 
@@ -135,8 +137,11 @@ end
 
 
 function inter_link:full()
---    print ('inter_link:full', self.src.head, self.src.mid, self.src.tail,
---       '->', self.src:full(), self.src:back_empty())
+--    print ('inter_link:full A', self.src.head, self.src.mid, self.src.tail)
+   while not self.src:back_empty() do
+      self.src:take():free()
+   end
+--    print ('inter_link:full B', self.src.head, self.src.mid, self.src.tail)
    return self.src:full() and self.src:back_empty()
 end
 
@@ -149,37 +154,59 @@ end
 --- front part is empty, swapping packet pointers between
 --- rings as it advances.
 function inter_link:receive()
---    print ('interlink:receive', self)
+   print ('interlink:receive', self)
    local dst = self.dst
+   print ('rcv A(dst)', self.dst.head, self.dst.mid, self.dst.tail)
    while not dst:full() do
       dst:add(packet.allocate())
    end
+   print ('rcv B(dst)', self.dst.head, self.dst.mid, self.dst.tail)
    if dst:back_empty() then
+      print ('rcv C(src/dst)', self.src.head, self.src.mid, self.src.tail,
+         '/', self.dst.head, self.dst.mid, self.dst.tail)
       local src = self.src
       while not src:front_empty() and not dst:front_empty() do
         dst.packets[dst.mid], src.packets[src.mid] = src.packets[src.mid], dst.packets[dst.mid]
         src.mid = band(src.mid+1, mask)
         dst.mid = band(dst.mid+1, mask)
       end
+      print ('rcv D(src/dst)', self.src.head, self.src.mid, self.src.tail,
+         '/', self.dst.head, self.dst.mid, self.dst.tail)
    end
 
    local p = self.dst:take()
+   print ('rcv E(p - dst)', p, self.dst.head, self.dst.mid, self.dst.tail)
    if p then
       self.rxpackets = self.rxpackets + 1
       self.rxbytes = self.rxbytes + p.length
    end
---    print ('<==', p)
+   print ('<==', p)
    return p
 end
 
 function inter_link:empty()
+   print ('inter_link:empty A', self.dst.head, self.dst.mid, self.dst.tail,
+      '\\', self.src.head, self.src.mid, self.src.tail)
    while not self.dst:full() do
       self.dst:add(packet.allocate())
    end
---    print ('inter_link:empty', self.dst.head, self.dst.mid, self.dst.tail,
+   print ('inter_link:empty B', self.dst.head, self.dst.mid, self.dst.tail,
+      '\\', self.src.head, self.src.mid, self.src.tail)
 --       '->', self.dst:back_empty(), self.dst:front_empty(), self.src:front_empty())
    return self.dst:back_empty() and (
       self.dst:front_empty() or self.src:front_empty())
+end
+
+
+function inter_link:report(name)
+   local function loss_rate(drop, sent)
+      drop, sent = tonumber(drop), tonumber(sent)
+      if not sent or sent == 0 then return 0 end
+      return drop * 100 / (drop+sent)
+   end
+   print(("%20s sent on %s (loss rate: %d%%)"):format(
+      lib.comma_value(self.txpackets),
+      name, loss_rate(self.txdrop, self.txpackets)))
 end
 
 

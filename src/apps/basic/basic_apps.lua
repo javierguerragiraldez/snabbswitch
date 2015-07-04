@@ -14,17 +14,20 @@ local C = ffi.C
 
 Source = {}
 
-function Source:new(size)
-   size = tonumber(size) or 60
+function Source:new(args)
+   size = tonumber(args.size) or 60
    local data = ffi.new("char[?]", size)
    local p = packet.from_pointer(data, size)
-   return setmetatable({size=size, packet=p}, {__index=Source})
+   return setmetatable({size=size, packet=p, interOut=args.output}, {__index=Source})
 end
 
 function Source:pull ()
-   for _, o in ipairs(self.output) do
-      for i = 1, link.nwritable(o) do
-         transmit(o, packet.clone(self.packet))
+   local pkt = self.packet
+   for _, o in ipairs(self.interOut) do
+      while not o:full() do
+         o:transmit(pkt:clone())
+--       for i = 1, link.nwritable(o) do
+--          transmit(o, packet.clone(self.packet))
       end
    end
 end
@@ -41,7 +44,7 @@ function Join:new()
    return setmetatable({}, {__index=Join})
 end
 
-function Join:push () 
+function Join:push ()
    for _, inport in ipairs(self.input) do
       for n = 1,math.min(link.nreadable(inport), link.nwritable(self.output.out)) do
          transmit(self.output.out, receive(inport))
@@ -73,15 +76,17 @@ end
 
 Sink = {}
 
-function Sink:new ()
-   return setmetatable({}, {__index=Sink})
+function Sink:new (args)
+   return setmetatable({interIn=args.input}, {__index=Sink})
 end
 
 function Sink:push ()
-   for _, i in ipairs(self.input) do
-      for _ = 1, link.nreadable(i) do
-        local p = receive(i)
-        packet.free(p)
+   for _, i in ipairs(self.interIn) do
+      while not i:empty() do
+         i:receive():free()
+--       for _ = 1, link.nreadable(i) do
+--         local p = receive(i)
+--         packet.free(p)
       end
    end
 end

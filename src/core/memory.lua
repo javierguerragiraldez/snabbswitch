@@ -11,13 +11,31 @@ local C = ffi.C
 local syscall = require("syscall")
 
 local lib = require("core.lib")
+local shm = require("core.shm")
 require("core.memory_h")
 
 --- ### Serve small allocations from hugepage "chunks"
 
 -- List of all allocated huge pages: {pointer, physical, size, used}
 -- The last element is used to service new DMA allocations.
-chunks = {}
+ffi.cdef [[
+   enum {
+      MAX_NUM_CHUNKS = 256,
+   };
+
+   typedef struct {
+      char *pointer;
+      uint64_t physical;
+      size_t size;
+      int used;
+   } chunk_t;
+
+   typedef struct {
+      chunk_t chunks[MAX_NUM_CHUNKS];
+      int num_chunks;
+   } dma_heap;
+]]
+_h = shm.map('/dma_heap', 'dma_heap', false, syscall.getpgid())
 
 -- Lowest and highest addresses of valid DMA memory.
 -- (Useful information for creating memory maps.)
@@ -28,10 +46,10 @@ dma_min_addr, dma_max_addr = false, false
 function dma_alloc (bytes)
    assert(bytes <= huge_page_size)
    bytes = lib.align(bytes, 128)
-   if #chunks == 0 or bytes + chunks[#chunks].used > chunks[#chunks].size then
+   if _h.num_chunks == 0 or bytes + _h.chunks[_h.num_chunks-1].used > _h.chunks[_h.num_chunks-1].size then
       allocate_next_chunk()
    end
-   local chunk = chunks[#chunks]
+   local chunk = _h.chunks[_h.num_chunks-1]
    local where = chunk.used
    chunk.used = chunk.used + bytes
    return chunk.pointer + where, chunk.physical + where, bytes
@@ -43,10 +61,13 @@ function allocate_next_chunk ()
                       "Failed to allocate a huge page for DMA")
    local mem_phy = assert(virtual_to_physical(ptr, huge_page_size),
                           "Failed to resolve memory DMA address")
-   chunks[#chunks + 1] = { pointer = ffi.cast("char*", ptr),
-                           physical = mem_phy,
-                           size = huge_page_size,
-                           used = 0 }
+   _h.chunks[_h.num_chunks] = {
+      pointer = ffi.cast("char*", ptr),
+      physical = mem_phy,
+      size = huge_page_size,
+      used = 0
+   }
+   _h.num_chunks = _h.num_chunks + 1
    local addr = tonumber(ffi.cast("uint64_t",ptr))
    dma_min_addr = math.min(dma_min_addr or addr, addr)
    dma_max_addr = math.max(dma_max_addr or 0, addr + huge_page_size)

@@ -3,6 +3,7 @@ module(..., package.seeall)
 local S = require('syscall')
 local stats = require('core.stats')
 local lib = require('core.lib')
+local inter_link = require('lib.thread.inter_link')
 
 
 local Spawn, Wait = nil, nil
@@ -30,17 +31,21 @@ end
 local function waitandshow()
    local pid, name = Wait()
    local stat = stats(pid)
-   return string.format ("%s: %s frees", name, lib.comma_value(stat.frees))
+   return string.format ("%s: %s frees, %s bytes", name,
+      lib.comma_value(stat.frees), lib.comma_value(stat.freebytes))
 end
 
 
 function selftest()
-   S.util.rm('/var/run/snabb/interlink')
+--    for _ = 1, 10 do
+--       memory.allocate_next_chunk ()
+--    end
    local f1 = Spawn('lib.thread.inter_send')
    local f2 = Spawn('lib.thread.inter_sink')
 
    print (waitandshow())
    print (waitandshow())
+   inter_link('/interlink'):report('interlink')
 end
 
 
