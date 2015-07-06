@@ -6,12 +6,24 @@ local lib = require('core.lib')
 local inter_link = require('lib.thread.inter_link')
 
 
+local function each_module(fname)
+   print ('each_module', fname)
+   for modname, module in pairs(package.loaded) do
+      if type(module) == 'table' and rawget(module, fname) then
+         print ('calling', modname, fname)
+         module[fname]()
+      end
+   end
+end
+
 local Spawn, Wait = nil, nil
 do
    local names = {}
    function Spawn(modulename)
+      each_module('prefork')
       local pid = S.fork()
       if pid == 0 then
+         each_module('postfork')
          require(modulename)
          os.exit()
       end

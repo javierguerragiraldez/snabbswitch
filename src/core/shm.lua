@@ -72,6 +72,7 @@ mappings = {}
 -- Map an object into memory.
 function map (name, type,  readonly, id)
    local path = resolve(name, id)
+--    print ('shm.map', name, id, path)
    local mapmode = readonly and 'read' or 'read, write'
    local ctype = ffi.typeof(type)
    local size = ffi.sizeof(ctype)
@@ -92,11 +93,12 @@ function map (name, type,  readonly, id)
    return ffi.cast(ffi.typeof("$&", ctype), mem)
 end
 
-function resolve (name, id)
+function resolve (name, id, full)
    local q, p = name:match("^(/*)(.*)") -- split qualifier (/ or //)
    local result = p
    if q == '' and path ~= '' then result = path.."/"..result end
    if q ~= '//'              then result = tostring(id or S.getpid()).."/"..result end
+   if full then result = root..'/'..result end
    return result
 end
 

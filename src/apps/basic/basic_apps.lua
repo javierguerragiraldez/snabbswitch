@@ -15,19 +15,22 @@ local C = ffi.C
 Source = {}
 
 function Source:new(args)
+   print('Source:new', args, args.output, #args.output, args.output[1])
    size = tonumber(args.size) or 60
    local data = ffi.new("char[?]", size)
+   print ('Source:new, data', data)
    local p = packet.from_pointer(data, size)
+   print ('Source:new, p', p)
    return setmetatable({size=size, packet=p, interOut=args.output}, {__index=Source})
 end
 
 function Source:pull ()
+--    io.write('+')
    local pkt = self.packet
    for _, o in ipairs(self.interOut) do
       while not o:full() do
+--          io.write('=')
          o:transmit(pkt:clone())
---       for i = 1, link.nwritable(o) do
---          transmit(o, packet.clone(self.packet))
       end
    end
 end
@@ -77,12 +80,15 @@ end
 Sink = {}
 
 function Sink:new (args)
+   print ('Sink:new', args, args.input, #args.input, args.input[1])
    return setmetatable({interIn=args.input}, {__index=Sink})
 end
 
-function Sink:push ()
+function Sink:pull ()
+--    io.write('-')
    for _, i in ipairs(self.interIn) do
       while not i:empty() do
+--          io.write('*')
          i:receive():free()
 --       for _ = 1, link.nreadable(i) do
 --         local p = receive(i)

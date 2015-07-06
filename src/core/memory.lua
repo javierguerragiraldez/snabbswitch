@@ -32,31 +32,75 @@ ffi.cdef [[
 
    typedef struct {
       chunk_t chunks[MAX_NUM_CHUNKS];
-      int num_chunks;
+      int num_chunks, cur_chunk;
    } dma_heap;
 ]]
-_h = shm.map('/dma_heap', 'dma_heap', false, syscall.getpgid())
+_h = false --shm.map('/dma_heap', 'dma_heap', false, syscall.getpgid())
 
 -- Lowest and highest addresses of valid DMA memory.
 -- (Useful information for creating memory maps.)
 dma_min_addr, dma_max_addr = false, false
 
+local lock_fd = nil
+
+function prefork()
+   if not _h then
+      _h = shm.map('/dma_heap', 'dma_heap', false, syscall.getpgid())
+      for i = 1, 10 do
+         allocate_next_chunk()
+      end
+   end
+end
+
+function postfork()
+   local err
+   lock_fd, err = syscall.open(shm.resolve('/dma_heap', syscall.getpgid(), true), 'rdonly')
+   if not lock_fd then error(err) end
+end
+
 -- Allocate DMA-friendly memory.
 -- Return virtual memory pointer, physical address, and actual size.
 function dma_alloc (bytes)
+--    local pid = syscall.getpid()
+--    print('dma_alloc', bytes, pid)
+   assert(lock_fd:flock('ex'))
+--    print ('got lock', pid)
    assert(bytes <= huge_page_size)
    bytes = lib.align(bytes, 128)
-   if _h.num_chunks == 0 or bytes + _h.chunks[_h.num_chunks-1].used > _h.chunks[_h.num_chunks-1].size then
+   if _h.num_chunks == 0 then
+      error ("no chunks, allocate on demand")
       allocate_next_chunk()
    end
-   local chunk = _h.chunks[_h.num_chunks-1]
+   local chunk = _h.chunks[_h.cur_chunk]
+   if bytes + chunk.used > chunk.size then
+      _h.cur_chunk = _h.cur_chunk + 1
+      if _h.cur_chunk >= _h.num_chunks then
+         error ("all used up, allocate on demand")
+         allocate_next_chunk()
+      end
+      assert (_h.num_chunks > _h.cur_chunk, "oveflow chunks list")
+      chunk = _h.chunks[_h.cur_chunk]
+   end
+
+--    if _h.num_chunks == 0 or bytes + _h.chunks[_h.cur_chunk].used > _h.chunks[_h.cur_chunk].size then
+--       error ("will allocate on demand")
+--       allocate_next_chunk()
+--    end
+--    local chunk = _h.chunks[_h.num_chunks-1]
    local where = chunk.used
    chunk.used = chunk.used + bytes
+--    print ('num chunks', _h.num_chunks, 'chunk.size', chunk.size, 'chunk.used', chunk.used)
+--    print ('unlock', pid)
+   assert(lock_fd:flock('un'))
+--    print ('done dma_alloc', pid)
    return chunk.pointer + where, chunk.physical + where, bytes
 end
 
 -- Add a new chunk.
 function allocate_next_chunk ()
+--    local pid = syscall.getpid()
+--    print ('allocate_next_chunk', pid)
+   assert (lock_fd == nil, "allocating after forks!")
    local ptr = assert(allocate_hugetlb_chunk(huge_page_size),
                       "Failed to allocate a huge page for DMA")
    local mem_phy = assert(virtual_to_physical(ptr, huge_page_size),
@@ -71,6 +115,7 @@ function allocate_next_chunk ()
    local addr = tonumber(ffi.cast("uint64_t",ptr))
    dma_min_addr = math.min(dma_min_addr or addr, addr)
    dma_max_addr = math.max(dma_max_addr or 0, addr + huge_page_size)
+--    print ('done allocate_next_chunk', pid)
 end
 
 --- ### HugeTLB: Allocate contiguous memory in bulk from Linux

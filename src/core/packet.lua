@@ -4,6 +4,7 @@ local debug = _G.developer_debug
 
 local ffi = require("ffi")
 local C = ffi.C
+local S = require('syscall')
 
 local freelist = require("core.freelist")
 local lib      = require("core.lib")
@@ -23,22 +24,40 @@ local max_payload = tonumber(C.PACKET_PAYLOAD_SIZE)
 local max_packets = 1e5
 local packet_allocation_step = 1000
 local packets_allocated = 0
-local packets_fl = freelist.new('struct packet *', max_packets)
+local packets_fl = nil
+local stats_count = nil
 
-local stats_count = stats()
+
+function postfork()
+   packets_fl = freelist.new('struct packet *', max_packets)
+   stats_count = stats()
+end
 
 -- Return an empty packet.
 function allocate ()
+   if packets_fl == nil then print ('allocate() without freelist'); error('dead') end
+--    print ('allocate')
+--    print ('packets_fl', packets_fl)
+--    print ('freelist.nfree A', packets_fl.nfree)
    if freelist_nfree(packets_fl) == 0 then
+--       print ('allocate(), zero free')
       preallocate_step()
    end
+--    print ('freelist.nfree B', packets_fl.nfree)
    return freelist_remove(packets_fl)
 end
 
 -- Create a new empty packet.
 function new_packet ()
-   local p = ffi.cast(packet_ptr_t, memory.dma_alloc(packet_size))
+--    local pid = S.getpid()
+--    print ('new_packet', pid)
+--    local p = ffi.cast(packet_ptr_t, memory.dma_alloc(packet_size))
+   local ptr, phy, bys = memory.dma_alloc(packet_size)
+--    print ('new_packet B:', pid, ptr, phy, bys)
+   local p = ffi.cast(packet_ptr_t, ptr)
+--    print ('new_packet C:', pid, p)
    p.length = 0
+--    print ('done new_packet', p, pid)
    return p
 end
 
@@ -80,8 +99,10 @@ function from_string (d)         return from_pointer(d, #d) end
 
 -- Free a packet that is no longer in use.
 local function free_internal (p)
+--    print ('free_internal', p, S.getpid())
    p.length = 0
    freelist_add(packets_fl, p)
+--    print ('done free_internal', p, S.getpid())
 end
 
 function free (p)
@@ -96,15 +117,20 @@ function data (p) return p.data end
 function length (p) return p.length end
 
 function preallocate_step()
+--    local pid = S.getpid()
+--    print ('preallocate_step', packet_allocation_step, packets_allocated, packets_fl, pid)
    if _G.developer_debug then
       assert(packets_allocated + packet_allocation_step <= max_packets)
    end
 
+--    print ('pre for', pid)
    for i=1, packet_allocation_step do
       free_internal(new_packet(), true)
    end
+--    print ('postfor', pid)
    packets_allocated = packets_allocated + packet_allocation_step
    packet_allocation_step = 2 * packet_allocation_step
+--    print ('done preallocate_step', packets_fl, pid)
 end
 
 ffi.metatype('struct packet', {__index = _M})

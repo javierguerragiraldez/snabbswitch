@@ -154,44 +154,44 @@ end
 --- front part is empty, swapping packet pointers between
 --- rings as it advances.
 function inter_link:receive()
-   print ('interlink:receive', self)
+--    print ('interlink:receive', self)
    local dst = self.dst
-   print ('rcv A(dst)', self.dst.head, self.dst.mid, self.dst.tail)
+--    print ('rcv A(dst)', self.dst.head, self.dst.mid, self.dst.tail)
    while not dst:full() do
       dst:add(packet.allocate())
    end
-   print ('rcv B(dst)', self.dst.head, self.dst.mid, self.dst.tail)
+--    print ('rcv B(dst)', self.dst.head, self.dst.mid, self.dst.tail)
    if dst:back_empty() then
-      print ('rcv C(src/dst)', self.src.head, self.src.mid, self.src.tail,
-         '/', self.dst.head, self.dst.mid, self.dst.tail)
+--       print ('rcv C(src/dst)', self.src.head, self.src.mid, self.src.tail,
+--          '/', self.dst.head, self.dst.mid, self.dst.tail)
       local src = self.src
       while not src:front_empty() and not dst:front_empty() do
         dst.packets[dst.mid], src.packets[src.mid] = src.packets[src.mid], dst.packets[dst.mid]
         src.mid = band(src.mid+1, mask)
         dst.mid = band(dst.mid+1, mask)
       end
-      print ('rcv D(src/dst)', self.src.head, self.src.mid, self.src.tail,
-         '/', self.dst.head, self.dst.mid, self.dst.tail)
+--       print ('rcv D(src/dst)', self.src.head, self.src.mid, self.src.tail,
+--          '/', self.dst.head, self.dst.mid, self.dst.tail)
    end
 
    local p = self.dst:take()
-   print ('rcv E(p - dst)', p, self.dst.head, self.dst.mid, self.dst.tail)
+--    print ('rcv E(p - dst)', p, self.dst.head, self.dst.mid, self.dst.tail)
    if p then
       self.rxpackets = self.rxpackets + 1
       self.rxbytes = self.rxbytes + p.length
    end
-   print ('<==', p)
+--    print ('<==', p)
    return p
 end
 
 function inter_link:empty()
-   print ('inter_link:empty A', self.dst.head, self.dst.mid, self.dst.tail,
-      '\\', self.src.head, self.src.mid, self.src.tail)
+--    print ('inter_link:empty A', self.dst.head, self.dst.mid, self.dst.tail,
+--       '\\', self.src.head, self.src.mid, self.src.tail)
    while not self.dst:full() do
       self.dst:add(packet.allocate())
    end
-   print ('inter_link:empty B', self.dst.head, self.dst.mid, self.dst.tail,
-      '\\', self.src.head, self.src.mid, self.src.tail)
+--    print ('inter_link:empty B', self.dst.head, self.dst.mid, self.dst.tail,
+--       '\\', self.src.head, self.src.mid, self.src.tail)
 --       '->', self.dst:back_empty(), self.dst:front_empty(), self.src:front_empty())
    return self.dst:back_empty() and (
       self.dst:front_empty() or self.src:front_empty())
@@ -204,9 +204,9 @@ function inter_link:report(name)
       if not sent or sent == 0 then return 0 end
       return drop * 100 / (drop+sent)
    end
-   print(("%20s sent on %s (loss rate: %d%%)"):format(
-      lib.comma_value(self.txpackets),
-      name, loss_rate(self.txdrop, self.txpackets)))
+   print (string.format('%10s: %20s tx packets (drop rate %d%%)\n%10s  %20s rx packets',
+      name, lib.comma_value(self.txpackets),loss_rate(self.txdrop, self.txpackets),
+      '', lib.comma_value(self.rxpackets)))
 end
 
 
