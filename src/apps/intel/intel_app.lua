@@ -7,6 +7,7 @@ local pci      = require("lib.hardware.pci")
 local register = require("lib.hardware.register")
 local intel10g = require("apps.intel.intel10g")
 local freelist = require("core.freelist")
+local C = require("ffi").C
 local receive, transmit, full, empty = link.receive, link.transmit, link.full, link.empty
 Intel82599 = {}
 Intel82599.__index = Intel82599
@@ -148,25 +149,26 @@ function selftest ()
       os.exit(engine.test_skipped_code)
    end
 
-   print ("100 VF initializations:")
-   manyreconf(pcideva, pcidevb, 100, false)
-   print ("100 PF full cycles")
-   manyreconf(pcideva, pcidevb, 100, true)
+--    print ("100 VF initializations:")
+--    manyreconf(pcideva, pcidevb, 100, false)
+--    print ("100 PF full cycles")
+--    manyreconf(pcideva, pcidevb, 100, true)
 
-   mq_sw(pcideva)
-   C.usleep(1.5*1000000)
-   engine.main({duration = 1, report={showlinks=true, showapps=false}})
-   do
-      local a0Sends = link.stats(engine.app_table.nicAm0.input.rx).txpackets
-      local a1Gets = link.stats(engine.app_table.nicAm1.output.tx).rxpackets
-      -- Check propertions with some modest margin for error
-      if a1Gets < a0Sends * 0.45 or a1Gets > a0Sends * 0.55 then
-         print("mq_sw: wrong proportion of packets passed/discarded")
-         os.exit(1)
-      end
-   end
+--    mq_sw(pcideva)
+-- --    C.usleep(1.5*1000000)
+--    engine.main({duration = 1, report={showlinks=true, showapps=false}})
+--    do
+--       local a0Sends = link.stats(engine.app_table.nicAm0.input.rx).txpackets
+--       local a1Gets = link.stats(engine.app_table.nicAm1.output.tx).rxpackets
+--       -- Check propertions with some modest margin for error
+--       if a1Gets < a0Sends * 0.45 or a1Gets > a0Sends * 0.55 then
+--          print("mq_sw: wrong proportion of packets passed/discarded")
+--          os.exit(1)
+--       end
+--    end
 
    sq_sq(pcideva, pcidevb)
+   C.usleep(3*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=false}})
 
    do
