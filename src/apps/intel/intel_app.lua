@@ -154,6 +154,7 @@ function selftest ()
    manyreconf(pcideva, pcidevb, 100, true)
 
    mq_sw(pcideva)
+   C.usleep(1.5*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=false}})
    do
       local a0Sends = link.stats(engine.app_table.nicAm0.input.rx).txpackets
@@ -185,6 +186,7 @@ function selftest ()
    end
 
    mq_sq(pcideva, pcidevb)
+   C.usleep(1.5*1000000)
    engine.main({duration = 1, report={showlinks=true, showapps=false}})
 
    do
@@ -369,6 +371,7 @@ function manyreconf(pcidevA, pcidevB, n, do_pf)
       config.link(c, 'nicAm1.tx -> sink_ms.in2')
       if do_pf then engine.configure(config.new()) end
       engine.configure(c)
+
       link.transmit(engine.app_table.source_ms.output.out, packet.from_string(d1))
       link.transmit(engine.app_table.source_ms.output.out, packet.from_string(d2))
       engine.main({duration = 0.1, no_report=true})
