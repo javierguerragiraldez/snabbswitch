@@ -100,7 +100,7 @@ function Tee:push ()
       while not inport:empty() do
          local pkt = inport:receive()
          local used = false
-         for _, outport in ipairs(self.outport) do
+         for _, outport in ipairs(self.output) do
             if not outport:full() then
                outport:transmit(used and pkt:clone() or pkt)
                used = true
