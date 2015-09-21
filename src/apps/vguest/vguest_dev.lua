@@ -12,7 +12,7 @@ local packet    = require("core.packet")
 local checksum  = require("lib.checksum")
 local gvring    = require('apps.vguest.guest_vring')
 require('lib.virtio.virtio_h')
-
+local band = bit.band
 
 local function fstruct(def)
    local struct = {}
@@ -79,6 +79,28 @@ virtio_pci_bar0 = fstruct[[
    uint16_t queue_vector;
 ]]
 
+local _qnbuf=ffi.new('uint16_t[1]')
+local function notify(fd, qn)
+   _qnbuf[0] = qn
+   fd:pwrite(_qnbuf, 2, 16)
+end
+
+function mapBar(fname, ct)
+   ct = ffi.typeof(ct)
+   local fd, err = S.open(fname, 'rdwr')
+   if not fd then error(err) end
+
+   local st = S.fstat(fd)
+   print ('stat size', st.size)
+
+   print ('sizeof ct', ffi.sizeof(ct))
+   local mem, err = S.mmap(nil, st.size, 'read, write', "", fd)
+   fd:close()
+   if mem == nil then error("mmap failed: " .. tostring(err)) end
+   mappings[pointer_to_number(mem)] = size
+   return ffi.cast(ffi.typeof("$&", ct), mem)
+end
+
 
 VGdev = {}
 VGdev.__index = VGdev
@@ -88,10 +110,25 @@ function VGdev:new(args)
    local min_features = 0 -- C.VIRTIO_F_VERSION_1?
    local want_features = C.VIRTIO_NET_F_CSUM
                         + C.VIRTIO_NET_F_MAC
+--                         + C.VIRTIO_RING_F_EVENT_IDX
 --                         + C.VIRTIO_F_VERSION_1
    pci.unbind_device_from_linux (args.pciaddr)
 
    local bar = openBar(pci.path(args.pciaddr..'/resource0'), virtio_pci_bar0)
+--    local bar = mapBar(pci.path(args.pciaddr..'/resource0'), ffi.typeof[[
+--       struct {
+--          uint32_t host_features;
+--          uint32_t guest_features;
+--          uint32_t queue_pfn;
+--          uint16_t queue_num;
+--          uint16_t queue_sel;
+--          uint16_t queue_notify;
+--          uint8_t status;
+--          uint8_t isr;
+--          uint16_t config_vector;
+--          uint16_t queue_vector;
+--       }
+--    ]])
 --    for k,v in pairs(virtio_pci_bar0) do
 --       print (string.format('%s: %X', v.fieldname, bar[v.fieldname]))
 --    end
@@ -107,7 +144,7 @@ function VGdev:new(args)
       bar:close()
       return nil, "doesn't provide minimum features"
    end
-   print ('set features to:', bit.band(features, want_features))
+   print ('ask features:', bit.band(features, want_features))
    bar.guest_features = bit.band(features, want_features)
    bar.status = bit.bor(bar.status, 8)           -- features_ok
    print ('got features: ', bar.host_features, bar.guest_features)
@@ -141,6 +178,7 @@ function VGdev:new(args)
    return setmetatable({
       bar = bar,
       vqs = vqs,
+      notified_sent = 0,
    }, self)
 end
 
@@ -189,11 +227,20 @@ end
 
 
 function VGdev:sync_transmit()
+   local txq = self.vqs[1]
    -- notify the device
-   self.bar.queue_notify = 1
+--    do
+--       local avail_idx = txq.vring.avail.idx
+--       local avail_event = txq.vring.used.avail_event_idx
+--       local old_idx = self.notified_sent
+-- --       if txq.vring.avail.idx ~= self.notified_sent then
+--       if band(avail_idx - avail_event -1, 0xFFFF) < band(avail_idx - old_idx) then
+         notify(self.bar.fd, 1)           -- self.bar.queue_notify = 1
+--          self.notified_sent = txq.vring.avail.idx
+--       end
+--    end
 
    -- free transmitted packets
-   local txq = self.vqs[1]
    while txq:more_used() do
       local p = txq:get()
       if p ~= nil then p:free() end

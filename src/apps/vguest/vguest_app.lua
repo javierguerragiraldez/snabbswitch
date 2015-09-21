@@ -60,18 +60,20 @@ local basic_apps = require("apps.basic.basic_apps")
 
 
 function selftest()
-   local pcidev = '0000:00:07.0'       -- os.getenv("SNABB_TEST_VIRTIO_PCIDEV")
+   local pcidev = '0000:00:04.0'       -- os.getenv("SNABB_TEST_VIRTIO_PCIDEV")
    local input_file = "apps/keyed_ipv6_tunnel/selftest.cap.input"
 --    local vg = VGuest:new({pciaddr=pcidev})
 
    engine.configure(config.new())
    local c = config.new()
-   config.app(c, 'source', pcap.PcapReader, input_file)
+--    config.app(c, 'source', pcap.PcapReader, input_file)
+   config.app(c, 'source', basic_apps.Source)
    config.app(c, 'vguest', VGuest, {pciaddr=pcidev})
    config.app(c, 'sink', basic_apps.Sink)
    config.link(c, 'source.output -> vguest.rx')
    config.link(c, 'vguest.tx -> sink.input')
    engine.configure(c)
+--    engine.busywait = true
    engine.main({duration = 1, report={showlinks=true, showapps=true}})
 
 end

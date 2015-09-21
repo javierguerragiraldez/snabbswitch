@@ -25,6 +25,7 @@ local function vring_type(n)
             uint16_t flags;
             uint16_t idx;
             uint16_t ring[$];
+         // uint16_t used_event_idx;
          } avail            __attribute__((aligned(8)));
          struct {
             uint16_t flags;
@@ -33,6 +34,7 @@ local function vring_type(n)
                uint32_t id;
                uint32_t len;
             } ring[$];
+         // uint16_t avail_event_idx;
          } used             __attribute__((aligned(4096)));
       }
    ]], n, n, n)
