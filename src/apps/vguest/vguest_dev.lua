@@ -5,6 +5,7 @@ local ffi       = require("ffi")
 local C         = ffi.C
 local S         = require('syscall')
 local pci       = require("lib.hardware.pci")
+local vfio      = require("lib.hardware.vfio")
 local bit       = require('bit')
 local lib       = require("core.lib")
 local link      = require("core.link")
@@ -38,20 +39,27 @@ local function fieldrd(field, fd)
 end
 
 local function fieldwr(field, fd, val)
---    print ('fieldwr', field.ct, field.size, field.offset)
    local buf = ffi.typeof('$ [1]', field.ct)()
    buf[0] = val
---    print ('val:', val, buf, buf[0])
    assert(fd:seek(field.offset))
---    print ('tell:', fd:tell())
    local r, err = fd:write(buf, field.size)
    if not r then error(err) end
    return buf[0]
 end
 
-local function openBar(fname, struct)
-   local fd, err = S.open(fname, 'rdwr')
-   if not fd then error(err) end
+local function openBar(fd, struct)
+   local err = nil
+   if type(fd) == 'string' then
+      print ('fd A:', fd)
+      fd, err = S.open(fd, 'rdwr')
+      if not fd then error(err) end
+      print ('fd B:', fd)
+   end
+   if type(fd) == 'number' then
+      print ('fd A:', fd)
+      fd = S.t.fd(fd)
+      print ('fd B:', fd)
+   end
    return setmetatable ({
       fd = fd,
       struct = struct,
@@ -94,13 +102,42 @@ function mapBar(fname, ct)
    print ('stat size', st.size)
 
    print ('sizeof ct', ffi.sizeof(ct))
-   local mem, err = S.mmap(nil, st.size, 'read, write', "", fd)
+   local mem, err = S.mmap(nil, st.size, 'read, write', 'shared', fd)
    fd:close()
    if mem == nil then error("mmap failed: " .. tostring(err)) end
    mappings[pointer_to_number(mem)] = size
    return ffi.cast(ffi.typeof("$&", ct), mem)
 end
 
+-- function mapBar(device, n, ct)
+--    local mem, fd = pci.map_pci_memory(device, n)
+--    print ('mem:', mem, 'fd:', fd)
+--    return ffi.cast(ffi.typeof("$&", ct), mem)
+-- end
+
+vfio.init_vfio_modules{'1af4 1000'}
+
+function mapBar(device, n, ct)
+   local devinfo = vfio.device_info(device)
+   vfio.setup_vfio(device, true)
+   C.show_device_info(vfio.get_vfio_fd(device))
+
+   vfio.map_memory_to_iommu(nil, 1024*1024)
+   local mem = vfio.map_pci_memory(device, n)
+   print ('mem:', mem)
+   vfio.set_bus_master(device, true)
+   return ffi.cast(ffi.typeof("$&", ct), mem)
+end
+
+function openVfioBar(device)
+   local devinfo = vfio.device_info(device)
+   vfio.setup_vfio(device, true)
+   local fd = vfio.get_vfio_fd(device)
+   C.show_device_info(fd)
+   C.mask_irq(fd, 0, 0)
+
+   return openBar(pci.path(device..'/resource0'), virtio_pci_bar0)
+end
 
 VGdev = {}
 VGdev.__index = VGdev
@@ -114,8 +151,9 @@ function VGdev:new(args)
 --                         + C.VIRTIO_F_VERSION_1
    pci.unbind_device_from_linux (args.pciaddr)
 
-   local bar = openBar(pci.path(args.pciaddr..'/resource0'), virtio_pci_bar0)
+--    local bar = openBar(pci.path(args.pciaddr..'/resource0'), virtio_pci_bar0)
 --    local bar = mapBar(pci.path(args.pciaddr..'/resource0'), ffi.typeof[[
+--    local bar = mapBar(args.pciaddr, 0, ffi.typeof[[
 --       struct {
 --          uint32_t host_features;
 --          uint32_t guest_features;
@@ -129,6 +167,8 @@ function VGdev:new(args)
 --          uint16_t queue_vector;
 --       }
 --    ]])
+   local bar = openVfioBar(args.pciaddr)
+
 --    for k,v in pairs(virtio_pci_bar0) do
 --       print (string.format('%s: %X', v.fieldname, bar[v.fieldname]))
 --    end
@@ -162,9 +202,11 @@ function VGdev:new(args)
       if queue_size == 0 then break end
 
       print (string.format('queue %d: size: %d', qn, queue_size))
-      local vring = gvring.allocate_vring(bar.queue_num)
+      local vring = gvring.allocate_vring(bar.queue_num, 1, 0)
       vqs[qn] = vring
       bar.queue_pfn = bit.rshift(vring.vring_physaddr, 12)      -- VIRTIO_PCI_QUEUE_ADDR_SHIFT
+      print (string.format('avail.flags: %d\tused.flags: %d',
+         vring.vring.avail.flags, vring.vring.used.flags))
    end
 
    if not(vqs[0] and vqs[1]) then
@@ -226,7 +268,7 @@ function VGdev:transmit(p)
 end
 
 
-function VGdev:sync_transmit()
+function VGdev:sync_transmit(do_notify)
    local txq = self.vqs[1]
    -- notify the device
 --    do
@@ -235,7 +277,9 @@ function VGdev:sync_transmit()
 --       local old_idx = self.notified_sent
 -- --       if txq.vring.avail.idx ~= self.notified_sent then
 --       if band(avail_idx - avail_event -1, 0xFFFF) < band(avail_idx - old_idx) then
+   if do_notify then
          notify(self.bar.fd, 1)           -- self.bar.queue_notify = 1
+   end
 --          self.notified_sent = txq.vring.avail.idx
 --       end
 --    end
@@ -249,18 +293,29 @@ end
 
 
 function VGdev:can_receive()
-   return self.vqs[0]:more_used()
+--    io.write('k')
+   local rq = self.vqs[0]
+--    io.write(string.format('(%d-%d)', rq.vring.used.idx, rq.last_used_idx))
+   local r = self.vqs[0]:more_used()
+--    io.write(string.format('[%s]', tostring(r)))
+   return r
 end
 
 
 function VGdev:receive()
+   io.write('v')
    local p = self.vqs[0]:get()
+   p:dump()
    p:shiftleft(ffi.sizeof(pk_header))
    return p
 end
 
 
-function VGdev:sync_receive()
+function VGdev:sync_receive(new_buffers)
+   if new_buffers then
+      io.write('n')
+      notify(self.bar.fd, 0)
+   end
 end
 
 
@@ -270,5 +325,6 @@ end
 
 
 function VGdev:add_receive_buffer(p)
+--    io.write('r')
    self.vqs[0]:add(p, ffi.sizeof(p.data))
 end

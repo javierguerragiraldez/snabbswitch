@@ -70,13 +70,16 @@ end
 -- end
 
 
-local function allocate_vring(n)
+local function allocate_vring(n, avail_flags, used_flags)
    local ct = vring_type(n)
    local vr = ffi.new(ct, { num = n })
    local ring_t = ffi.typeof(vr.vring[0])
    local ptr, phys, sz = memory.dma_alloc(ffi.sizeof(vr.vring[0]))
    vr.vring = ffi.cast(ring_t, ptr)
    vr.vring_physaddr = phys
+
+   vr.vring.avail.flags = avail_flags
+   vr.vring.used.flags = used_flags
 
    for i = 0, n-1 do
       vr.vring.desc[i].next = i+1
@@ -106,7 +109,7 @@ function VRing:add(p, len)
    desc.next = -1
 
    self.vring.avail.ring[band (self.vring.avail.idx, self.num-1)] = idx
-   C.full_memory_barrier()
+--    C.full_memory_barrier()
    self.vring.avail.idx = self.vring.avail.idx + 1
 end
 
@@ -119,7 +122,7 @@ end
 function VRing:get()
    if not self:more_used() then return nil end
 
-   C.full_memory_barrier()
+--    C.full_memory_barrier()
    local last_used_idx = band(self.last_used_idx, self.num-1)
    local id = self.vring.used.ring[last_used_idx].id
    local p = self.packets[id]
